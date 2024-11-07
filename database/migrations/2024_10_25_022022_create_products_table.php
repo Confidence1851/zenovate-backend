@@ -15,7 +15,7 @@ return new class extends Migration
             $table->id();
             $table->string("name")->unique();
             $table->string("subtitle")->nullable();
-            $table->string("caption")->nullable();
+            $table->string("description")->nullable();
             $table->double("price");
             $table->timestamps();
             $table->softDeletes();

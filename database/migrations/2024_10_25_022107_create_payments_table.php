@@ -13,10 +13,10 @@ return new class extends Migration
     {
         Schema::create('payments', function (Blueprint $table) {
             $table->id();
-            $table->foreignId("user_id")->constrained("users");
             $table->foreignUuid("form_session_id")->constrained("form_sessions");
+            $table->foreignId("user_id")->nullable()->constrained("users");
             $table->string("reference", 50)->unique();
-            $table->string("session_id")->nullable();
+            $table->string("payment_reference", 200)->nullable()->unique();
             $table->string("receipt_url")->nullable();
             $table->string("gateway");
             $table->string("currency");

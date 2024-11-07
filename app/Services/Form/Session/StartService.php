@@ -1,12 +1,13 @@
 <?php
 
-namespace App\Service\Form\Session;
+namespace App\Services\Form\Session;
 
+use App\Helpers\StatusConstants;
 use App\Models\FormSession;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 
-class UpdateService
+class StartService
 {
     private function validate(array $data): array
     {
@@ -23,8 +24,8 @@ class UpdateService
 
     public function handle(array $data)
     {
-        logger("Session data", $data);
         return FormSession::create([
+            "status" => StatusConstants::PENDING,
             "metadata" => [
                 "user_agent" => $data["userAgent"] ?? null,
                 "location" => $data["location"] ?? null,

@@ -16,6 +16,7 @@ return new class extends Migration
             $table->foreignId("user_id")->nullable()->constrained("users");
             $table->json("data")->nullable();
             $table->json("metadata")->nullable();
+            $table->string("status");
             $table->timestamps();
             $table->softDeletes();
         });
