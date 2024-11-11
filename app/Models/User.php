@@ -45,4 +45,15 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
+
+    public function scopeSearch($query, $keyword)
+    {
+        $query->where(function ($q) use ($keyword) {
+            $q->whereRaw('CONCAT(first_name, " ", last_name) LIKE?', ["%$keyword%"]);
+        });
+    }
+
+    function getFullNameAttribute()  {
+        return $this->first_name . " " . $this->last_name;
+    }
 }

@@ -2,9 +2,11 @@
 
 namespace App\Services\Form\Payment;
 
+use App\Helpers\Helper;
 use App\Helpers\StatusConstants;
 use App\Models\FormSession;
 use App\Models\Payment;
+use App\Models\PaymentProduct;
 
 class ProcessorService
 {
@@ -15,11 +17,12 @@ class ProcessorService
         $metadata = $session->metadata["raw"];
         $payment = Payment::create([
             "form_session_id" => $session->id,
-            "reference" => uniqid(),
+            "reference" => self::generateReference(),
+            "sub_total" => $data["sub_total"],
             "gateway" => "Stripe",
             "currency" => $data["currency"],
-            "amount" => $data["total"],
-            "fees" => null,
+            "total" => $data["total"],
+            "shipping_fee" => $data["shipping_fee"],
             // "receipt_url" => $response->receipt_url,
             "address" => $metadata["streetAddress"] ?? null,
             "postal_code" => $metadata["postalZipCode"] ?? null,
@@ -33,10 +36,17 @@ class ProcessorService
             // "metadata" => json_encode($data)
         ]);
 
+        foreach ($data["products"] as $product) {
+            PaymentProduct::firstOrCreate([
+                "payment_id" => $payment->id,
+                "product_id" => $product->id
+            ]);
+        }
+
         $intent = $service->setCurrency($data["currency"])
             ->setCountry($data["country_code"])
             ->setDescription("Zenovate")
-            ->setShippingFee($data["shipping_fee"])
+            ->setShippingFee($payment["shipping_fee"])
             ->setProducts($data["products"])
             ->setPayment($payment)
             ->checkout();
@@ -59,8 +69,19 @@ class ProcessorService
         return 60;
     }
 
+    public static function generateReference()
+    {
+        $code = "PR-" . Helper::getRandomToken(6, true);
+        $check = Payment::where("reference", $code)->exists();
+        if ($check) {
+            return self::generateReference();
+        }
+        return $code;
+    }
 
-     function callback( array $data){
+
+    function callback(array $data)
+    {
         $payment = Payment::whereHas("formSession")->findOrFail($data["payment_id"]);
         $service = new StripeService;
         $service->setPayment($payment)
@@ -68,5 +89,5 @@ class ProcessorService
 
         $redirect_url = env("FRONTEND_APP_URL") . "/" . $payment->form_session_id;
         return $redirect_url;
-     }
+    }
 }

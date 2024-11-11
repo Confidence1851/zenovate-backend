@@ -33,12 +33,12 @@
                             <thead>
                                 <tr>
                                     <th>SN</th>
-                                    <th>User</th>
-                                    <th>Package</th>
-                                    <th>Amount</th>
-                                    <th>Discount</th>
-                                    <th>Reference</th>
-                                    <th>Session</th>
+                                    <th>Session Reference</th>
+                                    <th>Payment Reference</th>
+                                    <th>Sub Total</th>
+                                    <th>Shipping Fee</th>
+                                    <th>Total</th>
+                                    <th>Status</th>
                                     <th>Date</th>
                                     <th></th>
                                 </tr>
@@ -47,12 +47,12 @@
                                 @foreach ($payments as $payment)
                                     <tr>
                                         <td>{{ $sn++ }}</td>
-                                        <td>{{ optional($payment->user)->name ?? "N/A" }}</td>
-                                        <td>{{ optional($payment->package)->name ?? "N/A" }}</td>
-                                        <td>{{ $payment->getAmount() ?? "N/A" }}</td>
-                                        <td>{{ $payment->getDiscount() ?? "N/A" }}</td>
+                                        <td>{{ $payment->formSession->reference ?? "N/A" }}</td>
                                         <td>{{ $payment->reference }}</td>
-                                        <td>{{ $payment->session_id }}</td>
+                                        <td>{{ $payment->getAmount("sub_total") ?? "N/A" }}</td>
+                                        <td>{{ $payment->getAmount("shipping_fee") ?? "N/A" }}</td>
+                                        <td>{{ $payment->getAmount("total") ?? "N/A" }}</td>
+                                        <td>{{ $payment->status }}</td>
                                         <td>{{ $payment->created_at }}</td>
                                         <td>
                                             <a href="{{ route("dashboard.payments.show" , $payment->id )}}" class="btn btn-sm btn-info">View</a>

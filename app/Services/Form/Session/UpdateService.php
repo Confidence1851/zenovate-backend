@@ -2,15 +2,21 @@
 
 namespace App\Services\Form\Session;
 
+use App\Exceptions\GeneralException;
+use App\Helpers\AppConstants;
 use App\Helpers\StatusConstants;
 use App\Models\Customer;
 use App\Models\FormSession;
+use App\Models\FormSessionActivity;
 use App\Models\Product;
 use App\Models\User;
+use App\Notifications\Form\Session\Admin\AwaitingReviewNotification;
+use App\Notifications\Form\Session\Customer\ReceivedNotification;
 use App\Services\Auth\CustomerService;
 use App\Services\Auth\UserService;
 use App\Services\Form\Payment\ProcessorService;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -63,20 +69,26 @@ class UpdateService
     {
         $this->validate($data);
         logger("Session data", $data);
-        $this->formSession = FormSession::find($data["sessionId"]);
+        $form = FormSession::whereIn("status", [
+            StatusConstants::PENDING,
+            StatusConstants::PROCESSING,
+        ])->find($data["sessionId"]);
 
-        if ($data["step"] != self::STEP_PRODUCT) {
-            unset($data["formData"]);
+        if (empty($form)) {
+            throw new GeneralException("Action not permitted");
         }
+
+        $this->formSession = $form;
+        if ($data["step"] != self::STEP_PRODUCT) {
+            unset($data["formData"]["selectedProducts"]);
+        }
+
+        $meta = $this->formSession->metadata ?? [];
         if ($data["step"] != self::STEP_SIGN) {
             if (!empty($raw = $data["formData"] ?? null)) {
+                $meta["raw"] = array_merge($meta["raw"] ?? [], $raw);
                 $this->formSession->update([
-                    "metadata" => [
-                        "raw" => array_merge(
-                            $this->formSession->metadata["raw"] ?? [],
-                            $raw
-                        )
-                    ]
+                    "metadata" => $meta
                 ]);
                 $this->formSession->refresh();
             }
@@ -94,10 +106,8 @@ class UpdateService
             }
             return [];
         }
-        
-        $this->formSession->update([
-            "status" => StatusConstants::COMPLETED
-        ]);
+
+        return $this->handleComplete($data);
     }
 
     public function mapFields(array $data)
@@ -114,10 +124,6 @@ class UpdateService
         ];
     }
 
-    public function handleComplete(array $data)
-    {
-        // Send Notification to users and generate pdf
-    }
 
     public function parseGeoData()
     {
@@ -160,25 +166,41 @@ class UpdateService
         ]);
     }
 
-    // public function handleInfo(array $data)
-    // {
-    //     $validator = Validator::make($data, [
-    //         "session_id" => "required|string",
-    //         "email" => "required|email",
-    //     ]);
+    public function handleComplete(array $data)
+    {
+        return DB::transaction(function () use ($data) {
+            $dto = new DTOService($this->formSession);
+            // $user = User::where("email", $dto->email())->first();
 
-    //     if ($validator->fails()) {
-    //         throw new ValidationException($validator);
-    //     }
+            // if(empty($user)){
+            //     $user = (new UserService)->save($data);
+            // }
 
-    //     $user = User::where("email", $data["email"])->first();
+            // (new CustomerService)->save($user, $data);
 
-    //     if(empty($user)){
-    //         $user = (new UserService)->save($data);
-    //     }
+            $this->formSession->update([
+                "status" => StatusConstants::AWAITING_REVIEW
+            ]);
 
-    //     (new CustomerService)->save($user, $data);
-    // }
+            FormSessionActivity::firstOrCreate([
+                "form_session_id" => $this->formSession->id,
+                "activity" => AppConstants::ACIVITY_SUBMITTED,
+            ], [
+                "message" => "Order was submitted by customer"
+            ]);
+
+            Notification::route('mail', [
+                $dto->email() => $dto->fullName(),
+            ])->notify(new ReceivedNotification($this->formSession));
+
+            $admins = User::whereIn("role", AppConstants::ADMIN_ROLES)
+                ->where("team", AppConstants::TEAM_ZENOVATE)
+                ->get();
+
+            Notification::send($admins , new AwaitingReviewNotification($this->formSession));
+
+        });
+    }
 
     public function handlePayment(array $data)
     {
@@ -198,6 +220,4 @@ class UpdateService
             return $process;
         });
     }
-
-
 }

@@ -2,6 +2,7 @@
 <html lang="en">
 
 <!-- Head -->
+
 <head>
     <!-- Page Meta Tags-->
     <meta charset="utf-8">
@@ -12,14 +13,15 @@
     <meta name="keywords" content="">
 
     <!-- Favicon -->
-    <link rel="shortcut icon" type="image/x-icon" href="{{ asset("favicon.png") }}">
+    <link rel="shortcut icon" type="image/x-icon" href="{{ asset('favicon.png') }}">
     <meta name="msapplication-TileColor" content="#da532c">
     <meta name="theme-color" content="#ffffff">
 
     <!-- Google Font-->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
+        rel="stylesheet">
     <!-- Vendor CSS -->
     <link rel="stylesheet" href="{{ $admin_assets }}/css/libs.bundle.css" />
 
@@ -27,26 +29,46 @@
     <link rel="stylesheet" href="{{ $admin_assets }}/css/theme.bundle.css" />
 
     <!-- Fix for custom scrollbar if JS is disabled-->
-    <noscript>
-        <style>
-            /**
+    {{-- <noscript> --}}
+    <style>
+        /**
           * Reinstate scrolling for non-JS clients
           */
-            .simplebar-content-wrapper {
-                overflow: auto;
-            }
+        .simplebar-content-wrapper {
+            overflow: auto;
+        }
 
-        </style>
-    </noscript>
+        .logo-text {
+            font-weight: 900;
+            color: white
+        }
+
+        .bg-theme,
+        .bg-primary {
+            background-color: #162c15;
+        }
+
+
+        .text-theme,
+        .text-primary {
+            color: #162c15 !important
+        }
+
+        .text-grey {
+            color: grey;
+        }
+    </style>
+    {{-- </noscript> --}}
 
     <!-- Page Title -->
     <title>Admin | Farsk Health</title>
 
 </head>
+
 <body class="">
-    @include("admin.layout.includes.navbar")
-    @yield("content")
-    @include("admin.layout.includes.aside")
+    @include('admin.layout.includes.navbar')
+    @yield('content')
+    @include('admin.layout.includes.aside')
     <!-- Theme JS -->
     <!-- Vendor JS -->
     <script src="{{ $admin_assets }}/js/vendor.bundle.js"></script>
@@ -59,17 +81,20 @@
     <script>
         if (jQuery('.tinymceEditor').length > 0) {
             tinymce.init({
-                selector: '.tinymceEditor'
-                , height: 200
-                , theme: 'modern'
-                , plugins: [' link image print preview hr anchor pagebreak emoticons', 'searchreplace wordcount visualblocks visualchars code fullscreen', 'insertdatetime nonbreaking save table contextmenu directionality']
-                , toolbar1: 'undo redo | insert | styleselect | bold italic | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | link image'
-                , toolbar2: 'print preview media | forecolor backcolor emoticons | codesample help'
-                , image_advtab: true
-            , });
+                selector: '.tinymceEditor',
+                height: 200,
+                theme: 'modern',
+                plugins: [' link image print preview hr anchor pagebreak emoticons',
+                    'searchreplace wordcount visualblocks visualchars code fullscreen',
+                    'insertdatetime nonbreaking save table contextmenu directionality'
+                ],
+                toolbar1: 'undo redo | insert | styleselect | bold italic | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | link image',
+                toolbar2: 'print preview media | forecolor backcolor emoticons | codesample help',
+                image_advtab: true,
+            });
         }
-
     </script>
+    @stack("scripts")
 </body>
 
 </html>

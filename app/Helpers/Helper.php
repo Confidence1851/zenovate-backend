@@ -2,6 +2,7 @@
 
 namespace App\Helpers;
 
+use App\Models\User;
 use Illuminate\Support\Facades\Response;
 use Illuminate\Support\Facades\Storage;
 
@@ -142,5 +143,48 @@ class Helper
             return route("web.read_file", $path);
         }
          return base64_decode($path);
+    }
+
+    static function sudo(){
+        return User::firstOrCreate([
+            "role" => AppConstants::ROLE_SUDO
+        ], [
+            "first_name" => "Super",
+            "last_name" => "Admin",
+            "email" => env("SUDO_EMAIL"),
+            "password" => env("SUDO_PASSWORD"),
+            "team" => AppConstants::TEAM_ZENOVATE
+        ]);
+    }
+
+    /** Returns a random alphanumeric token or number
+     * @param int length
+     * @param bool  type
+     * @return string token
+     */
+    static function getRandomToken($length, $typeInt = false)
+    {
+        $token = '';
+        $codeAlphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        $codeAlphabet .= strtolower($codeAlphabet);
+        $codeAlphabet .= '0123456789';
+        $max = strlen($codeAlphabet);
+
+        if ($typeInt == true) {
+            for ($i = 0; $i < $length; $i++) {
+                $token .= rand(0, 9);
+            }
+            $token = intval($token);
+        } else {
+            for ($i = 0; $i < $length; $i++) {
+                $token .= $codeAlphabet[random_int(0, $max - 1)];
+            }
+        }
+
+        if (strlen(strval($token)) < $length) {
+            return self::getRandomToken($length, $typeInt);
+        }
+
+        return $token;
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Exceptions\GeneralException;
 use App\Helpers\ApiConstants;
 use App\Helpers\ApiHelper;
 use App\Helpers\StatusConstants;
@@ -11,6 +12,7 @@ use App\Models\Product;
 use App\Services\Form\Session\StartService;
 use App\Services\Form\Session\UpdateService;
 use App\Services\Form\Payment\ProcessorService;
+use App\Services\Form\Session\WebhookService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Throwable;
@@ -32,6 +34,11 @@ class FormController extends Controller
                 $request,
                 $e
             );
+        } catch (GeneralException $e) {
+            return ApiHelper::problemResponse(
+                $e->getMessage(),
+                ApiConstants::BAD_REQ_ERR_CODE
+            );
         } catch (Throwable $e) {
             return $this->throwableError($e);
         }
@@ -52,29 +59,13 @@ class FormController extends Controller
                 $request,
                 $e
             );
+        } catch (GeneralException $e) {
+            return ApiHelper::problemResponse(
+                $e->getMessage(),
+                ApiConstants::BAD_REQ_ERR_CODE
+            );
         } catch (Throwable $e) {
             // dd($e);
-            return $this->throwableError($e);
-        }
-    }
-
-
-    function completeSession(Request $request)
-    {
-        try {
-            $request["step"] = UpdateService::STEP_COMPLETE;
-            (new UpdateService)->handle($request->all());
-            return ApiHelper::validResponse(
-                'Session completed successfully',
-            );
-        } catch (ValidationException $e) {
-            return ApiHelper::inputErrorResponse(
-                $e->getMessage(),
-                ApiConstants::VALIDATION_ERR_CODE,
-                $request,
-                $e
-            );
-        } catch (Throwable $e) {
             return $this->throwableError($e);
         }
     }
@@ -94,6 +85,11 @@ class FormController extends Controller
                 $request,
                 $e
             );
+        } catch (GeneralException $e) {
+            return ApiHelper::problemResponse(
+                $e->getMessage(),
+                ApiConstants::BAD_REQ_ERR_CODE
+            );
         } catch (Throwable $e) {
             return $this->throwableError($e);
         }
@@ -112,6 +108,11 @@ class FormController extends Controller
                     "price"
                 ])
             );
+        } catch (GeneralException $e) {
+            return ApiHelper::problemResponse(
+                $e->getMessage(),
+                ApiConstants::BAD_REQ_ERR_CODE
+            );
         } catch (Throwable $e) {
             return $this->throwableError($e);
         }
@@ -120,7 +121,7 @@ class FormController extends Controller
     function info($id)
     {
         try {
-            $form = FormSession::whereNot("status" , StatusConstants::COMPLETED)->find($id);
+            $form = FormSession::whereNot("status", StatusConstants::COMPLETED)->find($id);
             if (empty($form)) {
                 return ApiHelper::problemResponse(
                     "Invalid session",
@@ -137,10 +138,12 @@ class FormController extends Controller
                     $message = "Your payment was successful, kindly proceed to the next step.";
                 } else {
                     $last_payment = $payments[0] ?? null;
-                    if ($last_payment->status == StatusConstants::FAILED) {
-                        $message = "Failed to verify your payment attempt; Kindly try again!";
-                    } elseif ($last_payment->status == StatusConstants::CANCELLED) {
-                        $message = "It appears you cancelled  your payment attempt; Kindly try again!";
+                    if (!empty($last_payment)) {
+                        if ($last_payment->status == StatusConstants::FAILED) {
+                            $message = "Failed to verify your payment attempt; Kindly try again!";
+                        } elseif ($last_payment->status == StatusConstants::CANCELLED) {
+                            $message = "It appears you cancelled  your payment attempt; Kindly try again!";
+                        }
                     }
                 }
             }
@@ -155,6 +158,28 @@ class FormController extends Controller
                         "message" => $message ?? null
                     ]
                 ]
+            );
+        } catch (GeneralException $e) {
+            return ApiHelper::problemResponse(
+                $e->getMessage(),
+                ApiConstants::BAD_REQ_ERR_CODE
+            );
+        } catch (Throwable $e) {
+            return $this->throwableError($e);
+        }
+    }
+
+    function webhookHandler(Request $request)
+    {
+        try {
+            $process = (new WebhookService)->handle($request->all());
+            return ApiHelper::validResponse(
+                'Webhook processed successfully',
+            );
+        } catch (GeneralException $e) {
+            return ApiHelper::problemResponse(
+                $e->getMessage(),
+                ApiConstants::BAD_REQ_ERR_CODE
             );
         } catch (Throwable $e) {
             return $this->throwableError($e);

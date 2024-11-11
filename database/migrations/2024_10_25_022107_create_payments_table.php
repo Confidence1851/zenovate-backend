@@ -20,8 +20,9 @@ return new class extends Migration
             $table->string("receipt_url")->nullable();
             $table->string("gateway");
             $table->string("currency");
-            $table->double("amount");
-            $table->double("fees")->nullable();
+            $table->double("sub_total");
+            $table->double("shipping_fee")->nullable();
+            $table->double("total");
             $table->string("address")->nullable();
             $table->string("postal_code")->nullable();
             $table->string("city")->nullable();
@@ -30,6 +31,7 @@ return new class extends Migration
             $table->string("phone");
             $table->string("status");
             $table->text("metadata")->nullable();
+            $table->timestamp("paid_at")->nullable();
             $table->timestamps();
         });
     }

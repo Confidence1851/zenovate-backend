@@ -9,5 +9,6 @@ Route:: as("api.form.")->prefix("form")->group(function () {
     Route::post('/session/start', [FormController::class, 'startSession'])->name('session.start');
     Route::post('/session/update', [FormController::class, 'updateSession'])->name('session.update');
     Route::any('/session/payment/callback/{payment_id}/{status}', [FormController::class, 'paymentCallback'])->name('session.payment.callback');
-    Route::post('/session/complete', [FormController::class, 'completeSession'])->name('session.complete');
+    Route::any('/session/webhook', [FormController::class, 'webhookHandler'])->name('session.webhooks');
+
 });

@@ -14,9 +14,13 @@ return new class extends Migration
         Schema::create('form_sessions', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->foreignId("user_id")->nullable()->constrained("users");
-            $table->json("data")->nullable();
+            $table->string("reference")->unique();
             $table->json("metadata")->nullable();
             $table->string("status");
+            $table->string("pdf_path")->nullable();
+            $table->string("docuseal_id")->nullable()->unique();
+            $table->text("docuseal_url")->nullable();
+            $table->text("comment")->nullable();
             $table->timestamps();
             $table->softDeletes();
         });

@@ -2,6 +2,7 @@
 
 namespace App\Services\Form\Session;
 
+use App\Helpers\Helper;
 use App\Helpers\StatusConstants;
 use App\Models\FormSession;
 use Illuminate\Support\Facades\Validator;
@@ -24,12 +25,24 @@ class StartService
 
     public function handle(array $data)
     {
+
         return FormSession::create([
             "status" => StatusConstants::PENDING,
+            "reference" => self::generateReference(),
             "metadata" => [
                 "user_agent" => $data["userAgent"] ?? null,
                 "location" => $data["location"] ?? null,
             ]
         ]);
+    }
+
+    public function generateReference()
+    {
+        $code = "FS-" . Helper::getRandomToken(6, true);
+        $check =  FormSession::where("reference" , $code)->exists();
+        if($check){
+            return self::generateReference();
+        }
+        return $code;
     }
 }

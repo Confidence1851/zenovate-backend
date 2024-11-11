@@ -16,6 +16,7 @@ class UserService
             "last_name" => "required|string",
             "email" => "required|email|unique:users,email,$id",
             "phone" => "required|string",
+            "role" => "required|string|in",
         ]);
 
         if ($validator->fails()) {

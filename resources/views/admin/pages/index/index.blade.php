@@ -35,7 +35,19 @@
                                 <div class="card-body">
                                     <div class="row gx-4 mb-3 mb-md-1">
                                         <div class="col-12 col-md-6">
-                                            <h3 class="fs-3 fw-bold d-flex align-items-center">{{ $stat['count'] }}</h3>
+                                            <h4 class="fs-3 fw-bold d-flex align-items-center">
+                                                @if (!is_array($stat['count']))
+                                                    {{ $stat['count'] }}
+                                                @else
+                                                    <div class="flex">
+                                                        <span class="me-2">
+                                                            @foreach ($stat['count'] as $key => $val)
+                                                                {{ $key }} {{ $val }}
+                                                            @endforeach
+                                                        </span>
+                                                    </div>
+                                                @endif
+                                            </h4>
                                         </div>
                                     </div>
                                 </div>
@@ -48,61 +60,16 @@
             <!-- / Top Row Widgets-->
 
             <div class="row mt-3">
-                <div class="col-md-6">
+                <div class="col-md-12">
                     <div class="card mb-4 h-100">
                         <div class="card-header justify-content-between align-items-center d-flex">
-                            <h6 class="card-title m-0">Lastest Applications</h6>
-                            <a href="{{ route('dashboard.applications.index') }}"
+                            <h6 class="card-title m-0">Lastest Sessions</h6>
+                            <a href="{{ route('dashboard.form-sessions.index') }}"
                                 class="btn btn-outline-secondary btn-sm text-body"><i
                                     class="ri-eye-2-line align-middle"></i> See all</a>
                         </div>
                         <div class="card-body">
-                            @include('admin.pages.applications.fragments.table', ['sn' => 1])
-
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <div class="card mb-4 h-100">
-                        <div class="card-header justify-content-between align-items-center d-flex">
-                            <h6 class="card-title m-0">Lastest Patients</h6>
-                            <a href="{{ route('dashboard.consultation.patient-records.index') }}"
-                                class="btn btn-outline-secondary btn-sm text-body"><i
-                                    class="ri-eye-2-line align-middle"></i> See all</a>
-                        </div>
-                        <div class="card-body">
-                            <div class="table-responsive">
-                                <table class="table m-0 table-striped">
-                                    <thead>
-                                        <tr>
-                                            <th>SN</th>
-                                            <th>Name</th>
-                                            <th>Email</th>
-                                            <th>Sex</th>
-                                            <th>Date</th>
-                                            <th></th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        @foreach ($patients as $sn => $patient)
-                                            <tr>
-                                                <td>{{ $sn + 1 }}</td>
-                                                <td>{{ $patient->full_name }}</td>
-                                                <td>{{ $patient->email ?? 'N/A' }}</td>
-                                                <td>{{ $patient->sex ?? 'N/A' }}</td>
-                                                <td>{{ $patient->created_at }}</td>
-                                                <td>
-                                                    <a href="{{ route('dashboard.consultation.patients.show', $patient->id) }}"
-                                                        class="btn btn-sm btn-info"><i
-                                                            class="ri-eye-line align-middle"></i></a>
-                                                </td>
-                                            </tr>
-                                        @endforeach
-                                    </tbody>
-                                </table>
-                            </div>
-
-
+                            @include('admin.pages.sessions.fragments.table' , ['sn' => 1])
                         </div>
                     </div>
                 </div>

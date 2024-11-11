@@ -166,29 +166,27 @@ class StripeService
         $check = $this->stripeClient->checkout->sessions
             ->retrieve($this->payment->payment_reference);
 
+
         $stripe_payment = ($check->amount_total / 100);
         if ($check->payment_status == "paid") {
-            $check_amount = $this->payment->amount == $stripe_payment;
+            $check_amount = $this->payment->total <= $stripe_payment;
             if ($check_amount) {
-                $checkout = (new UpdateService)->setFormSession($this->payment->formSession)
-                    ->handleCheckout([]);
-                if ($stripe_payment < $checkout["total"]) {
+                $this->payment->update([
+                    "status" => StatusConstants::SUCCESSFUL,
+                    "paid_at" => now(),
+                ]);
+                $this->payment->formSession->update([
+                    "status" => StatusConstants::PROCESSING
+                ]);
+
+                try {
+                    $paymentIntent = $this->stripeClient->paymentIntents->retrieve($check->payment_intent);
+                    $charge = $this->stripeClient->charges->retrieve($paymentIntent->latest_charge);
                     $this->payment->update([
-                        "status" => StatusConstants::FAILED
+                        "receipt_url" => $charge->receipt_url
                     ]);
-                } else {
-                    $this->payment->update([
-                        "status" => StatusConstants::SUCCESSFUL
-                    ]);
-                    foreach ($checkout["products"] as $product) {
-                        PaymentProduct::firstOrCreate([
-                            "payment_id" => $this->payment->id,
-                            "product_id" => $product->id
-                        ]);
-                    }
-                    $this->payment->formSession->update([
-                        "status" => StatusConstants::PROCESSING
-                    ]);
+                } catch (\Throwable $th) {
+                    //throw $th;
                 }
             } else {
                 $this->payment->update([
@@ -197,7 +195,7 @@ class StripeService
             }
         } elseif ($data["status"] == StatusConstants::CANCELLED) {
             $this->payment->update([
-                "status" => StatusConstants::CANCELLED
+                "status" => StatusConstants::CANCELLED,
             ]);
         }
     }

@@ -26,4 +26,16 @@ class FormSession extends Model
         return $this->hasMany(Payment::class, "form_session_id")->latest();
     }
 
+    function getStatus() {
+        return ucwords(str_replace("_", " ", $this->status));
+    }
+
+    public function scopeSearch($query, $keyword)
+    {
+        $query->where(function ($q) use ($keyword) {
+            $q->whereRaw('CONCAT(reference, " ", metadata) LIKE?', ["%$keyword%"]);
+        });
+    }
+
+
 }

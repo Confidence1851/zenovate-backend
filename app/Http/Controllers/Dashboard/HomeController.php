@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers\Dashboard;
 
+use App\Helpers\StatusConstants;
 use App\Http\Controllers\Controller;
 use App\Models\ApplicationForm;
+use App\Models\FormSession;
 use App\Models\Patient;
 use App\Models\PatientRecord;
 use App\Models\Payment;
@@ -31,36 +33,39 @@ class HomeController extends Controller
     {
         $stats = [
             [
-                "label" => "Users",
-                "count" => User::count(),
-                "link" => route("dashboard.users.index")
+                "label" => "Incomplete Form Sessions",
+                "count" => FormSession::whereIn("status", [
+                    StatusConstants::PROCESSING,
+                ])->count(),
+                "link" => route("dashboard.form-sessions.index", ["status" => StatusConstants::PROCESSING])
             ],
             [
-                "label" => "Applications",
-                "count" => ApplicationForm::count(),
-                "link" => route("dashboard.applications.index")
+                "label" => "Orders Awaiting Review",
+                "count" => FormSession::whereIn("status", [
+                    StatusConstants::AWAITING_REVIEW,
+                ])->count(),
+                "link" => route("dashboard.form-sessions.index", ["status" => StatusConstants::AWAITING_REVIEW])
             ],
             [
-                "label" => "Payments",
-                "count" => Payment::count(),
-                "link" => route("dashboard.payments.index")
+                "label" => "Completed Orders",
+                "count" => FormSession::whereIn("status", [
+                    StatusConstants::COMPLETED,
+                ])->count(),
+                "link" => route("dashboard.form-sessions.index", ["status" => StatusConstants::COMPLETED])
             ],
             [
-                "label" => "Consultations",
-                "count" => PatientRecord::count(),
-                "link" => route("dashboard.consultation.patient-records.index")
+                "label" => "Payments Collected",
+                "count" => [
+                    "USD" => number_format(Payment::where("status", StatusConstants::SUCCESSFUL)->where("currency", "USD")->sum("total"), 2),
+                    "CAD" => number_format(Payment::where("status", StatusConstants::SUCCESSFUL)->where("currency", "CAD")->sum("total"),2),
+                ],
+                "link" => route("dashboard.payments.index" , ["status" => StatusConstants::SUCCESSFUL])
             ],
         ];
-        $applications = ApplicationForm::with([
-            "user",
-            "payment",
-            "package"
-        ])->limit(10)->latest()->get();
-        $patients =  Patient::limit(10)->latest()->get();
-        return view("admin.pages.index.index" , [
+        $sessions = FormSession::limit(10)->latest()->get();
+        return view("admin.pages.index.index", [
             "stats" => $stats,
-            "applications" => $applications,
-            "patients" => $patients
+            "sessions" => $sessions
         ]);
     }
 }

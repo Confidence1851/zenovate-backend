@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Dashboard;
 
+use App\Helpers\StatusConstants;
 use App\Http\Controllers\Controller;
 use App\Models\Payment;
 use App\Models\TreatmentPackage;
@@ -16,27 +17,19 @@ class PaymentController extends Controller
      */
     public function index(Request $request)
     {
-        $payments = Payment::with([
-            "user",
-            "package"
-        ])->where(function ($query) use ($request) {
+        $payments = Payment::with("formSession")->where(function ($query) use ($request) {
             if (!empty($key = $request->search)) {
-                $query->whereHas("user", function ($user) use ($key) {
-                    $user->whereRaw('CONCAT(name," ", email , " " , discount_code , " ", session_id , " ", reference) LIKE?', ["%$key%"]);
-                })
-                    ->orWhere("reference", "like", "%$key%")
-                    ->orWhere("session_id", "like", "%$key%");
+                $query->search($key);
             }
-            if (!empty($key = $request->package_id)) {
-                $query->where("package_id", $key);
+            if (!empty($key = $request->status)) {
+                $query->whereStatus($key);
             }
         })
             ->latest()->paginate()->appends($request->query());
-        $packages = TreatmentPackage::active()->get();
         return view("admin.pages.payments.index", [
             "sn" => $payments->firstItem(),
             "payments" => $payments,
-            "packages" => $packages
+            "statuses" => StatusConstants::PAYMENT_OPTIONS,
         ]);
     }
 
@@ -70,8 +63,8 @@ class PaymentController extends Controller
     public function show($id)
     {
         $payment = Payment::with([
-            "user",
-            "package"
+            "formSession",
+            "products"
         ])->findOrFail($id);
         return view("admin.pages.payments.show", [
             "payment" => $payment,
