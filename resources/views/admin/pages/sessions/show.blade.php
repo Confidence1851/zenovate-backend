@@ -1,0 +1,245 @@
+@extends('admin.layout.app')
+@section('content')
+    <!-- Page Content -->
+    <main id="main">
+
+        <!-- Breadcrumbs-->
+        <div class="bg-white border-bottom py-3 mb-5">
+            <div
+                class="container-fluid d-flex justify-content-between align-items-start align-items-md-center flex-column flex-md-row">
+                <nav class="mb-0" aria-label="breadcrumb">
+                    <ol class="breadcrumb m-0">
+                        <li class="breadcrumb-item"><a href="{{ route('home') }}">Home</a></li>
+                        <li class="breadcrumb-item"><a href="{{ route('dashboard.form-sessions.index') }}">Form Sessions</a>
+                        </li>
+                        <li class="breadcrumb-item active" aria-current="page">Form Session Information </li>
+                    </ol>
+                </nav>
+                <div class="d-flex justify-content-end align-items-center mt-3 mt-md-0">
+                    @if ($can_review)
+                        <a class="btn btn-sm btn-success text-white me-3" href="#"data-bs-toggle="modal"
+                            data-bs-target="#review_order">Review</a>
+                        @include('admin.pages.sessions.fragments.modals.review', ['key' => 'review_order'])
+                    @endif
+                    <a class="btn btn-sm btn-primary" href="{{ url()->previous() ?? 'N/A' }}"><i
+                            class="arrow-left align-bottom"></i>Back</a>
+
+                </div>
+            </div>
+        </div> <!-- / Breadcrumbs-->
+
+        <!-- Content-->
+
+        <section class="container-fluid">
+            @include('notifications.flash_messages')
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="card mb-4">
+                        <div class="card-header justify-content-between align-items-center d-flex">
+                            <h6 class="card-title m-0">Form Session Information <b>#{{ $session->reference }}</b></h6>
+                        </div>
+                        <div class="card-body">
+                            <h6>Basic Details</h6>
+                            <hr>
+                            <p>
+                                <b>Unique Reference:</b> {{ $dto->reference() ?? 'N/A' }}
+                            </p>
+                            <p>
+                                <b>Status:</b> {{ $dto->status() ?? 'N/A' }}
+                            </p>
+                            <p>
+                                <b>Signed Document:</b>
+                                @if (!empty(($url = $session->docuseal_url)))
+                                    <a href="{{ $url }}" target="_blank" rel="noopener noreferrer">View</a>
+                                @else
+                                    N/A
+                                @endif
+                            </p>
+                            <br>
+                            <hr>
+                            <h6>Personal Details</h6>
+                            <hr>
+                            <p>
+                                <b>Name:</b> {{ $dto->fullName() ?? 'N/A' }}
+                            </p>
+                            <p>
+                                <b>Email:</b> {{ $dto->email() ?? 'N/A' }}
+                            </p>
+                            <p>
+                                <b>Phone:</b> {{ $dto->phone() ?? 'N/A' }}
+                            </p>
+                            <p>
+                                <b>Preferred Contact Method:</b> {{ $dto->preferredContact() ?? 'N/A' }}
+                            </p>
+                            <p>
+                                <b>Date of Birth:</b> {{ $dto->dob() ?? 'N/A' }}
+                            </p>
+                            <br>
+                            <hr>
+                            <h6>Location Details</h6>
+                            <hr>
+                            <p>
+                                <b>Street Address:</b> {{ $dto->streetAddress() ?? 'N/A' }}
+                            </p>
+                            <p>
+                                <b>City:</b> {{ $dto->city() ?? 'N/A' }}
+                            </p>
+                            <p>
+                                <b>State/Province:</b> {{ $dto->stateProvince() ?? 'N/A' }}
+                            </p>
+                            <p>
+                                <b>Zip Code:</b> {{ $dto->postalZipCode() ?? 'N/A' }}
+                            </p>
+                            <p>
+                                <b>Country:</b> {{ $dto->country() ?? 'N/A' }}
+                            </p>
+                            <br>
+                            <hr>
+                            <h6>Payment Details</h6>
+                            <hr>
+                            @if (empty($dto->payment))
+                                <p>
+                                    No payment records at the moment
+                                </p>
+                            @else
+                                <p>
+                                    <b>Sub Total:</b>{{ strtoupper($dto->payment->currency) }}
+                                    {{ number_format($dto->payment->sub_total, 2) }}
+                                </p>
+                                <p>
+                                    <b>Shipping Fee:</b>{{ strtoupper($dto->payment->currency) }}
+                                    {{ number_format($dto->payment->shipping_fee, 2) }}
+                                </p>
+                                <p>
+                                    <b>Total:</b>{{ strtoupper($dto->payment->currency) }}
+                                    {{ number_format($dto->payment->total, 2) }}
+                                </p>
+                                <p>
+                                    <b>Paid At:</b>{{ $dto->payment->paid_at ?? 'N/A' }}
+                                </p>
+                                <p>
+                                    <b>Receipt:</b> <a href="{{ $dto->payment->receipt_url }}" target="_blank"
+                                        rel="noopener noreferrer">View</a>
+                                </p>
+                            @endif
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card mb-4">
+                        <div class="card-header justify-content-between align-items-center d-flex">
+                            <h6 class="card-title m-0">Products Information</h6>
+                        </div>
+                        <div class="card-body">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Quantity</th>
+                                        <th>Price</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @forelse ($dto->selectedProducts() as $product)
+                                        <tr>
+                                            <td>{{ $product->name }}</td>
+                                            <td>1</td>
+                                            <td>{{ strtoupper($dto->payment->currency) }}
+                                                {{ number_format($product->price, 2) }}</td>
+                                        </tr>
+                                    @empty
+                                        <tr>
+                                            <td colspan="3">No products selected at the
+                                                moment</td>
+                                        </tr>
+                                    @endforelse
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="card mb-4">
+                        <div class="card-header justify-content-between align-items-center d-flex">
+                            <h6 class="card-title m-0">Activities</h6>
+                        </div>
+                        <div class="card-body">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Activity</th>
+                                        <th>Message</th>
+                                        <th>Date</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @forelse ($activities as $activity)
+                                        <tr>
+                                            <td>{{ $activity->activity }}</td>
+                                            <td>{{ $activity->message }}</td>
+                                            <td>{{ $activity->created_at->format('Y-m-d h:i A') }}</td>
+                                        </tr>
+                                    @empty
+                                        <tr>
+                                            <td colspan="3">No products selected at the
+                                                moment</td>
+                                        </tr>
+                                    @endforelse
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-header justify-content-between align-items-center d-flex">
+                    <h6 class="card-title m-0">Questionnaire</h6>
+                </div>
+                <div class="card-body">
+                    <table class="table table-bordered table-striped">
+                        <thead>
+                            <tr>
+                                <th class="p_5">QUESTION</th>
+                                <th class="p_5">ANSWER</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach ($dto->questions() as $question)
+                                @if ($question['type'] == 'group')
+                                    <tr>
+                                        <td colspan="2"><br></td>
+                                    </tr>
+                                    <tr>
+                                        <td colspan="2">
+                                            <h6 class="title">{{ $question['title'] }}</h6>
+                                            <small class="text-grey">{{ $question['subtitle'] }}</small>
+                                            <hr>
+                                        </td>
+                                    </tr>
+                                @else
+                                    <tr>
+                                        <td style="width: 40%;"><b>{{ $question['question'] }}</b></td>
+                                        <td>
+                                            {{ $question['value'] ?? 'N/A' }}
+                                            @if (!empty(($sub = $question['sub'] ?? null)) && !empty(($v = $sub['value'])))
+                                                <br><br>
+                                                <div class="alert alert-dark">
+                                                    <div><b class="text-grey">{{ $sub['placeholder'] }}</b></div>
+                                                    <div>{{ $v }}</div>
+                                                </div>
+                                            @endif
+                                        </td>
+                                    </tr>
+                                @endif
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </section>
+        <!-- / Content-->
+
+    </main>
+    <!-- /Page Content -->
+@endsection

@@ -11,6 +11,7 @@ class ApiConstants
     const AUTH_ERR_CODE = 401;
 
     const FORBIDDEN_ERR_CODE = 403;
+    const NOT_FOUND_ERR_CODE = 404;
 
     const VALIDATION_ERR_CODE = 422;
 

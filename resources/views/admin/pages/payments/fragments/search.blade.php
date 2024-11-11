@@ -1,15 +1,15 @@
 <form class="mt-2 mb-2 row" action="{{ url()->current() }}">
     <div class="form-group col-4">
         <label for="">Search</label>
-        <input type="text" name="search" placeholder="Search with name, email , reference, discount code or session" class="form-control" value="{{ request()->search }}">
+        <input type="text" name="search" placeholder="Search with name, email or reference" class="form-control" value="{{ request()->search }}">
     </div>
     <div class="form-group col-auto">
-        <label for="">Package</label>
-        <select name="package_id" class="form-control">
-            <option value="" disabled selected>Select Option</option>
-            @foreach ($packages as $package)
-            <option value="{{ $package->id }}" {{ request()->package_id == $package->id ? 'selected' : '' }}>
-                {{ $package->name }}
+        <label for="">Status</label>
+        <select name="status" class="form-control">
+            <option value="">Select Option</option>
+            @foreach ($statuses as $option)
+            <option value="{{ $option }}" {{ request()->status == $option ? 'selected' : '' }}>
+                {{ $option }}
             </option>
             @endforeach
         </select>
