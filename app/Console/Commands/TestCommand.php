@@ -27,6 +27,8 @@ class TestCommand extends Command
      */
     public function handle()
     {
+        (new SignService(FormSession::first()))->generatePdf(true);
+        dd();
         auth()->loginUsingId(1);
         $session = FormSession::find("9d76d8e2-9b2a-4d56-b211-438d4dcc8989");
         (new SignService($session))->handleAdminReview([

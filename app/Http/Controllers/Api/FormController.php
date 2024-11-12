@@ -121,7 +121,10 @@ class FormController extends Controller
     function info($id)
     {
         try {
-            $form = FormSession::whereNot("status", StatusConstants::COMPLETED)->find($id);
+            $form = FormSession::whereIn("status", [
+                StatusConstants::PENDING,
+                StatusConstants::PROCESSING,
+            ])->find($id);
             if (empty($form)) {
                 return ApiHelper::problemResponse(
                     "Invalid session",
