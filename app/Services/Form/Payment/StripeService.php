@@ -199,4 +199,15 @@ class StripeService
             ]);
         }
     }
+
+    function refund()
+    {
+        $check = $this->stripeClient->checkout->sessions
+            ->retrieve($this->payment->payment_reference);
+        $this->stripeClient->refunds->create(['payment_intent' => $check->payment_intent]);
+        $this->payment->update([
+            "status" => StatusConstants::REFUNDED,
+        ]);
+
+    }
 }

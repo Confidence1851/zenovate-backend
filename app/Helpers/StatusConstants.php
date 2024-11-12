@@ -15,6 +15,7 @@ class StatusConstants
     const AWAITING_CONFIRMATION = "Awaiting_Confirmation";
     const CANCELLED = "Cancelled";
     const DECLINED = "Declined";
+    const REFUNDED = "Refunded";
     const FAILED = "Failed";
     const YES = "Yes";
     const NO = "No";
@@ -37,6 +38,7 @@ class StatusConstants
         self::PENDING => self::PENDING,
         self::SUCCESSFUL => self::SUCCESSFUL,
         self::FAILED => self::FAILED,
+        self::REFUNDED => self::REFUNDED,
     ];
 
     const SESSION_OPTIONS = [

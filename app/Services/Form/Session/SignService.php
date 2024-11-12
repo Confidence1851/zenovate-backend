@@ -10,6 +10,7 @@ use App\Models\FormSession;
 use App\Models\FormSessionActivity;
 use App\Notifications\Form\Session\Customer\DeclinedNotification;
 use App\Notifications\Form\Session\Customer\StatusNotification;
+use App\Services\Form\Payment\StripeService;
 use App\Services\General\Pdf\MpdfService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -146,6 +147,9 @@ class SignService
                     "user_id" => $user->id,
                     "message" => "Order reviewed and declined by {$user->full_name}. Comment: " . $data["comment"]
                 ]);
+
+                (new StripeService())->setPayment($this->session->completedPayment)
+                    ->refund();
 
                 Notification::route('mail', [
                     $dto->email() => $dto->fullName(),
