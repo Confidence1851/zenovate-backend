@@ -302,7 +302,7 @@
             </tr>
         </tbody>
     </table>
-    <br>
+    {{-- <br>
     <br>
     <br>
     <table class="no_border">
@@ -316,7 +316,7 @@
                     Signature: @{{Signature;role=skycare_admin;type=signature}}</td>
             </tr>
         </tbody>
-    </table>
+    </table> --}}
 </body>
 
 </html>

@@ -43,29 +43,33 @@ class WebhookService
                     "message" => "Order signed by {$signer_role} ($signer_email)."
                 ]);
 
-                if ($signer_email == env("SKYCARE_ADMIN_EMAIL")) {
-                    $session->update([
-                        "status" => StatusConstants::COMPLETED,
-                    ]);
+                // if ($signer_email == env("SKYCARE_ADMIN_EMAIL")) {
+                $session->update([
+                    "status" => StatusConstants::COMPLETED,
+                ]);
 
-                    FormSessionActivity::firstOrCreate([
-                        "form_session_id" => $session->id,
-                        "activity" => AppConstants::ACIVITY_CONFIRMED,
-                    ], [
-                        "message" => "Order signing completed."
-                    ]);
+                FormSessionActivity::firstOrCreate([
+                    "form_session_id" => $session->id,
+                    "activity" => AppConstants::ACIVITY_CONFIRMED,
+                ], [
+                    "message" => "Order signing completed."
+                ]);
 
-                    $dto = new DTOService($session);
-                    Notification::route('mail', [
-                        $dto->email() => $dto->fullName(),
-                    ])->notify(new ConfirmedNotification($session));
+                (new AirtableService)->pushData($session->refresh());
 
-                    $admins = User::whereIn("role", AppConstants::ADMIN_ROLES)
-                        ->where("team", AppConstants::TEAM_ZENOVATE)
-                        ->get();
+                $dto = new DTOService($session);
+                Notification::route('mail', [
+                    $dto->email() => $dto->fullName(),
+                ])->notify(new ConfirmedNotification($session));
 
-                    Notification::send($admins, new AdminConfirmedNotification($session));
-                }
+                $admins = User::whereIn("role", AppConstants::ADMIN_ROLES)
+                    ->where("team", AppConstants::TEAM_ZENOVATE)
+                    ->get();
+
+                Notification::send($admins, new AdminConfirmedNotification($session));
+
+
+                // }
             }
 
         });

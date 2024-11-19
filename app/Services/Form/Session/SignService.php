@@ -35,17 +35,17 @@ class SignService
 
 
         $response = $this->client->post($url, [
-            "template_id" => 371357,
+            "template_id" => $this->session->docuseal_id,
             "send_email" => true,
             'submitters' => [
                 [
                     'name' => 'zenovate_admin',
                     'email' => env("ZENOVATE_ADMIN_EMAIL")
                 ],
-                [
-                    'name' => 'skycare_admin',
-                    'email' => env("SKYCARE_ADMIN_EMAIL")
-                ]
+                // [
+                //     'name' => 'skycare_admin',
+                //     'email' => env("SKYCARE_ADMIN_EMAIL")
+                // ]
             ],
         ]);
 
