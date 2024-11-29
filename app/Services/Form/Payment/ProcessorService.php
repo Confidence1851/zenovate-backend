@@ -2,6 +2,7 @@
 
 namespace App\Services\Form\Payment;
 
+use App\Helpers\EncryptionService;
 use App\Helpers\Helper;
 use App\Helpers\StatusConstants;
 use App\Models\FormSession;
@@ -87,7 +88,11 @@ class ProcessorService
         $service->setPayment($payment)
             ->verify($data);
 
-        $redirect_url = env("FRONTEND_APP_URL") . "/" . $payment->form_session_id;
+        $hash = base64_encode((new EncryptionService)->encrypt([
+            "key" => "payment",
+            "value" => $payment->form_session_id
+        ]));
+        $redirect_url = env("FRONTEND_APP_URL") . "/redirect/$hash";
         return $redirect_url;
     }
 }

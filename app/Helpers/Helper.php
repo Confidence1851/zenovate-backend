@@ -188,3 +188,4 @@ class Helper
         return $token;
     }
 }
+

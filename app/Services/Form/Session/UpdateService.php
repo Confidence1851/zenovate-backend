@@ -4,8 +4,8 @@ namespace App\Services\Form\Session;
 
 use App\Exceptions\GeneralException;
 use App\Helpers\AppConstants;
+use App\Helpers\EncryptionService;
 use App\Helpers\StatusConstants;
-use App\Models\Customer;
 use App\Models\FormSession;
 use App\Models\FormSessionActivity;
 use App\Models\Product;
@@ -96,15 +96,18 @@ class UpdateService
 
             $formatted_data = $this->mapFields($data);
 
+            $response = [];
             foreach (self::STEPS as $step) {
                 if ($data["step"] == $step) {
                     $method_name = "handle" . ucfirst($step);
                     if (method_exists($this, $method_name)) {
-                        return call_user_func([$this, $method_name], $formatted_data);
+                        $response = call_user_func([$this, $method_name], $formatted_data);
                     }
                 }
             }
-            return [];
+            return array_merge($response, [
+                "paid" => $this->formSession->completedPayment()->exists(),
+            ]);
         }
 
         return $this->handleComplete($data);
@@ -114,13 +117,13 @@ class UpdateService
     {
         return [
             "session_id" => $data["sessionId"] ?? null,
-            "first_name" => $data["firstName"] ?? null,
-            "last_name" => $data["lastName"] ?? null,
-            "email" => $data["email"] ?? null,
-            "phone" => $data["phoneNumber"] ?? null,
-            "dob" => $data["dateOfBirth"] ?? null,
-            "preferred_contact_method" => $data["preferredContact"] ?? null,
-            "selected_products" => $data["selectedProducts"] ?? null,
+            "first_name" => $data["formData"]["firstName"] ?? null,
+            "last_name" => $data["formData"]["lastName"] ?? null,
+            "email" => $data["formData"]["email"] ?? null,
+            "phone" => $data["formData"]["phoneNumber"] ?? null,
+            "dob" => $data["formData"]["dateOfBirth"] ?? null,
+            "preferred_contact_method" => $data["formData"]["preferredContact"] ?? null,
+            "selected_products" => $data["formData"]["selectedProducts"] ?? null,
         ];
     }
 
@@ -197,9 +200,42 @@ class UpdateService
                 ->where("team", AppConstants::TEAM_ZENOVATE)
                 ->get();
 
-            Notification::send($admins , new AwaitingReviewNotification($this->formSession));
+            Notification::send($admins, new AwaitingReviewNotification($this->formSession));
+
+            $hash = base64_encode((new EncryptionService)->encrypt([
+                "key" => "authenticate",
+                "value" => $this->formSession->user_id,
+                "expires_at" => now()->addMinute()
+            ]));
+            $redirect_url = env("FRONTEND_APP_SITE_URL") . "/auth/authenticate/$hash";
+            return [
+                "redirect_url" => $redirect_url
+            ];
 
         });
+    }
+
+    public function handleInfo(array $data)
+    {
+        logger("Handling data", $data);
+        $email = $data["email"];
+        if (empty($email)) {
+            return [];
+        }
+
+        $user = User::where("email", $email)->first();
+
+        if (empty($user)) {
+            $user = (new UserService)->save(array_merge($data, ["role" => AppConstants::ROLE_CUSTOMER]));
+        }
+        (new CustomerService)->save($user, $data);
+
+        $this->formSession->update([
+            "user_id" => $user->id
+        ]);
+
+        return [];
+
     }
 
     public function handlePayment(array $data)

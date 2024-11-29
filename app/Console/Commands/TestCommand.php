@@ -2,6 +2,8 @@
 
 namespace App\Console\Commands;
 
+use App\Helpers\EncryptionService;
+use App\Helpers\Helper;
 use App\Models\FormSession;
 use App\Services\Form\Session\AirtableService;
 use App\Services\Form\Session\SignService;
@@ -28,6 +30,14 @@ class TestCommand extends Command
      */
     public function handle()
     {
+        $hash = base64_encode((new EncryptionService)->encrypt([
+            "key" => "payment",
+            "value" => "9d92116e-939e-441d-8ad2-7b6fbd8bfdb8"
+        ]));
+        $redirect_url = env("FRONTEND_APP_URL") . "/redirect/$hash";
+        dd($redirect_url);
+        $t = "RU4rRVlyU0ZJM1doRXN2V3JlTXlISEo2SWxvZmpRc1dmZDVRemJhek1xeDdpQUMyR3NySlY0V2NVNFJNMWVxUWRSc3FvZHp5cFY4SEtrNTMvZDhGM2poT0FSdkt4OW5ESWdTQnIyWGltTGs9";
+        dd((new EncryptionService)->decrypt(base64_decode($t)));
         $session = FormSession::find("9d85af3c-70b9-4455-b707-634f945daa89");
 
         // (new SignService(FormSession::first()))->generatePdf(true);
@@ -38,7 +48,7 @@ class TestCommand extends Command
         //     "comment" => "Inconsistent"
         // ]);
 
-        (new SignService($session))->sendToSigners();
-        // (new AirtableService)->pushData($session);
+        // (new SignService($session))->sendToSigners();
+        (new AirtableService)->pushData($session);
     }
 }

@@ -126,7 +126,7 @@ class StripeService
             'mode' => 'payment',
         ];
         $shipping_info = [
-            'shipping_address_collection' => ['allowed_countries' => [$this->country]],
+            'shipping_address_collection' => ['allowed_countries' => ["CA", "US"]],
             'shipping_options' => [
                 [
                     'shipping_rate_data' => [

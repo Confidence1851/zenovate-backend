@@ -53,6 +53,7 @@ class FormController extends Controller
                 $data
             );
         } catch (ValidationException $e) {
+            logger($e->getMessage(), $e->errors());
             return ApiHelper::inputErrorResponse(
                 $e->getMessage(),
                 ApiConstants::VALIDATION_ERR_CODE,
@@ -185,6 +186,7 @@ class FormController extends Controller
                 ApiConstants::BAD_REQ_ERR_CODE
             );
         } catch (Throwable $e) {
+            dd($e);
             return $this->throwableError($e);
         }
     }
