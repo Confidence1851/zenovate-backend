@@ -12,8 +12,8 @@ class CustomerService
     private function validate(array $data): array
     {
         $validator = Validator::make($data, [
-            "dob" => "required|date",
-            "preferred_contact_method" => "required|string|in:email,phone",
+            "dob" => "nullable|date",
+            "preferred_contact_method" => "nullable|string|in:email,phone",
             "address" => "nullable|string",
             "postal_code" => "nullable|string",
             "city" => "nullable|string",

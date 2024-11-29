@@ -26,7 +26,8 @@ class FormSession extends Model
         return $this->hasMany(Payment::class, "form_session_id")->latest();
     }
 
-    function getStatus() {
+    function getStatus()
+    {
         return ucwords(str_replace("_", " ", $this->status));
     }
 
@@ -37,5 +38,9 @@ class FormSession extends Model
         });
     }
 
+    function user()
+    {
+        return $this->belongsTo(User::class, "user_id");
+    }
 
 }

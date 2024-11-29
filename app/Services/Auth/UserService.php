@@ -2,9 +2,11 @@
 
 namespace App\Services\Auth;
 
+use App\Helpers\AppConstants;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class UserService
@@ -15,8 +17,10 @@ class UserService
             "first_name" => "required|string",
             "last_name" => "required|string",
             "email" => "required|email|unique:users,email,$id",
-            "phone" => "required|string",
-            "role" => "required|string|in",
+            "phone" => "nullable|string",
+            "password" => "nullable|string",
+            "team" => "nullable|string",
+            "role" => "required|string|".Rule::in(AppConstants::ROLES),
         ]);
 
         if ($validator->fails()) {
@@ -31,6 +35,7 @@ class UserService
         $data = $this->validate($data, $id);
         if (empty($id)) {
             $data["password"] = Hash::make($data["password"] ?? uniqid());
+            $data["team"] = $data["team"] ?? AppConstants::TEAM_ZENOVATE;
             $user = User::create($data);
         } else {
             $user = User::find($id);
