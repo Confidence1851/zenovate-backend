@@ -10,9 +10,13 @@ use Throwable;
 
 class ApiHelper
 {
-    public static function problemResponse(?string $message, int $status_code, ?Request $request = null, ?Throwable $trace = null)
-    {
-        $code = ! empty($status_code) ? $status_code : null;
+    public static function problemResponse(
+        ?string $message,
+        ?int $status_code,
+        ?Request $request = null,
+        ?Throwable $trace = null
+    ) {
+        $code = !empty($status_code) ? $status_code : ApiConstants::BAD_REQ_ERR_CODE;
         $traceMsg = empty($trace) ? null : $trace->getMessage();
 
         $body = [
@@ -22,8 +26,8 @@ class ApiHelper
             'error_debug' => $traceMsg,
         ];
 
-        ! empty($trace) ? logger($trace->getMessage(), $trace->getTrace()) : null;
-        if (! empty($trace)) {
+        !empty($trace) ? logger($trace->getMessage(), $trace->getTrace()) : null;
+        if (!empty($trace)) {
             // \Sentry\captureException($trace);
         }
 
@@ -42,7 +46,7 @@ class ApiHelper
             'errors' => empty($trace) ? null : $trace->errors(),
         ];
 
-        if (! empty($trace)) {
+        if (!empty($trace)) {
             // \Sentry\captureException($trace);
         }
 

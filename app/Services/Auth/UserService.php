@@ -16,11 +16,11 @@ class UserService
         $validator = Validator::make($data, [
             "first_name" => "required|string",
             "last_name" => "required|string",
-            "email" => "required|email|unique:users,email,$id",
+            "email" => "required|email|unique:users,email" . empty($id) ? '' : ",$id",
             "phone" => "nullable|string",
             "password" => "nullable|string",
             "team" => "nullable|string",
-            "role" => "required|string|".Rule::in(AppConstants::ROLES),
+            "role" => "required|string|" . Rule::in(AppConstants::ROLES),
         ]);
 
         if ($validator->fails()) {

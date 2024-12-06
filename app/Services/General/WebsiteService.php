@@ -16,7 +16,7 @@ class WebsiteService
     public function contactUs(array $data)
     {
         $validator = Validator::make($data, [
-            "email" => "required|email|exists:users,email",
+            "email" => "required|email",
             "name" => "required|string",
             "phone" => "required|string",
             "subject" => "required|string",
