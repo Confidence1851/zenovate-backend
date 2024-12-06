@@ -21,6 +21,7 @@ Route:: as("api.")->group(function () {
 
     Route:: as("form.")->prefix("form")->group(function () {
         Route::get('/products', [FormController::class, 'productIndex'])->name('products.index');
+        Route::get('/products/{id}', [FormController::class, 'productInfo'])->name('products.info');
         Route::get('/session/info/{id}', [FormController::class, 'info'])->name('session.info');
         Route::post('/session/start', [FormController::class, 'startSession'])->name('session.start');
         Route::post('/session/update', [FormController::class, 'updateSession'])->name('session.update');
