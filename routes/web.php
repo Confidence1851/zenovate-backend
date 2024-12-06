@@ -11,7 +11,7 @@ Route::get('/', function () {
     return redirect()->route("login");
 });
 
-Route:: as("dashboard.")->prefix("dashboard")->middleware(["auth", "admin"])->group(function () {
+Route::as("dashboard.")->prefix("dashboard")->middleware(["auth", "admin"])->group(function () {
     Route::get('/', [HomeController::class, 'index'])->name('index');
     Route::resource('form-sessions', FormSessionController::class);
     Route::resource('admins', AdminController::class);
@@ -20,7 +20,7 @@ Route:: as("dashboard.")->prefix("dashboard")->middleware(["auth", "admin"])->gr
     Route::resource('payments', PaymentController::class);
     Route::resource('applications', ApplicationController::class);
 
-    Route:: as("consultation.")->prefix("consultation")->group(function () {
+    Route::as("consultation.")->prefix("consultation")->group(function () {
         Route::resource('patients', PatientController::class);
         Route::get('/patients/{id}/print', [PatientController::class, 'print'])->name('patients.print');
         Route::resource('patient-records', PatientRecordController::class);
@@ -33,5 +33,3 @@ Auth::routes(["register" => false]);
 Route::get('/home', function () {
     return redirect()->route("dashboard.index");
 })->name('home');
-
-

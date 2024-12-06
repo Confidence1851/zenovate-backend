@@ -94,6 +94,9 @@ return [
                 'postmark',
             ],
         ],
+        'preview' => [
+            'transport' => 'preview',
+        ],
 
     ],
 
