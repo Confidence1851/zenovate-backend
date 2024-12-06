@@ -66,7 +66,6 @@ class FormController extends Controller
                 ApiConstants::BAD_REQ_ERR_CODE
             );
         } catch (Throwable $e) {
-            // dd($e);
             return $this->throwableError($e);
         }
     }
