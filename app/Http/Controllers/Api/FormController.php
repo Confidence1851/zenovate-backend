@@ -118,6 +118,29 @@ class FormController extends Controller
         }
     }
 
+    function productInfo($id)
+    {
+        try {
+            return ApiHelper::validResponse(
+                'Product retrieved successfully',
+                Product::select([
+                    "id",
+                    "name",
+                    "subtitle",
+                    "description",
+                    "price"
+                ])->findOrFail($id)
+            );
+        } catch (GeneralException $e) {
+            return ApiHelper::problemResponse(
+                $e->getMessage(),
+                ApiConstants::BAD_REQ_ERR_CODE
+            );
+        } catch (Throwable $e) {
+            return $this->throwableError($e);
+        }
+    }
+
     function info($id)
     {
         try {
