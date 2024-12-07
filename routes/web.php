@@ -28,7 +28,7 @@ Route::as("dashboard.")->prefix("dashboard")->middleware(["auth", "admin"])->gro
     });
 });
 
-Auth::routes(["register" => false]);
+Auth::routes(["register" => true]);
 
 Route::get('/home', function () {
     return redirect()->route("dashboard.index");
