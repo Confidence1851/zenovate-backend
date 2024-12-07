@@ -40,7 +40,7 @@
                     <button class="btn btn-link p-0 position-relative" type="button" id="profileDropdown"
                         data-bs-toggle="dropdown" aria-expanded="false">
                         <picture>
-                            <img class="f-w-10 rounded-circle" src="{{ asset('user.jpg') }}" alt="">
+                            <img class="f-w-10 rounded-circle" src="{{ secure_asset('user.jpg') }}" alt="">
                         </picture>
                         <span
                             class="position-absolute bottom-0 start-75 p-1 bg-success border border-3 border-white rounded-circle">

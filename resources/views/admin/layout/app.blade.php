@@ -13,7 +13,7 @@
     <meta name="keywords" content="">
 
     <!-- Favicon -->
-    <link rel="shortcut icon" type="image/x-icon" href="{{ asset('favicon.png') }}">
+    <link rel="shortcut icon" type="image/x-icon" href="{{ secure_asset('favicon.ico') }}">
     <meta name="msapplication-TileColor" content="#da532c">
     <meta name="theme-color" content="#ffffff">
 
@@ -94,7 +94,7 @@
             });
         }
     </script>
-    @stack("scripts")
+    @stack('scripts')
 </body>
 
 </html>

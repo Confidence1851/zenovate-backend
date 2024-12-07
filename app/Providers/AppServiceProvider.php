@@ -19,10 +19,16 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // View composer
         view()->composer("*", function ($view) {
             $view->with([
-                "admin_assets" => asset("admin"),
+                "admin_assets" => secure_asset("admin"),
             ]);
         });
+
+        // Force HTTPS in production
+        if (config('app.env') === 'production') {
+            \URL::forceScheme('https');
+        }
     }
 }
