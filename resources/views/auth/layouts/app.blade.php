@@ -37,7 +37,7 @@
 <body class="bg-white font-sans">
     <main class="lg:flex h-[100vh]">
         <!-- Login Form Section -->
-        <div class="w-full lg:w-2/3 flex justify-center items-center flex-col h-full p-4">
+        <div class="pl-auto md:pl-16 w-full lg:w-2/3 flex justify-center items-center flex-col h-full p-4">
             <div class="space-y-8 w-full max-w-[600px] mx-auto">
                 <div class="space-y-2 text-center lg:text-left">
                     <h1 class="text-2xl md:text-4xl font-bold text-black uppercase">{{ $title ?? '' }}</h1>
@@ -53,7 +53,8 @@
         </div>
 
         <!-- Side Image Section -->
-        <div class="hidden lg:block w-1/3 lg:flex-1 h-full p-4 lg:min-w-[600px] xl:min-w-[800px] max-w-[1000px]">
+        <div
+            class="pr-auto md:pr-16 hidden lg:block w-1/3 lg:flex-1 h-full p-4 lg:min-w-[600px] xl:min-w-[800px] max-w-[1000px]">
             <div
                 class="h-full w-full bg-[url('{{ url('assets/images/auth-image.jpg') }}')] bg-no-repeat bg-cover rounded-sm bg-right">
             </div>
