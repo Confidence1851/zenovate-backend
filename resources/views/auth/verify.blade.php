@@ -1,4 +1,7 @@
-@extends('auth.layouts.app')
+@extends('auth.layouts.app', [
+    'title' => 'Verify Email',
+    'sub_title' => 'Please check your inbox and verify your email address to continue',
+])
 
 @section('content')
     <div class="container">

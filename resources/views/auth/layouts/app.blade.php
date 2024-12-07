@@ -4,7 +4,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Responsive Login Page</title>
+    @php
+        $metadataService = new App\Services\General\MetadataService();
+        $metadata = $metadataService->createMetadata([
+            'title' => $title ?? null,
+            'description' => $description ?? null,
+            'openGraph' => [
+                'title' => $title ?? null,
+                'description' => $description ?? null,
+            ],
+        ]);
+    @endphp
+    {!! $metadataService->renderMetaTags($metadata) !!}
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         .form-label {
@@ -51,7 +62,6 @@
                 </a>
             </div>
         </div>
-
         <!-- Side Image Section -->
         <div
             class="pr-auto md:pr-16 hidden lg:block w-1/3 lg:flex-1 h-full p-4 lg:min-w-[600px] xl:min-w-[800px] max-w-[1000px]">

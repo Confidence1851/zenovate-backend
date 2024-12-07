@@ -1,4 +1,8 @@
-@extends('auth.layouts.app')
+@extends('auth.layouts.app', [
+    'title' => 'Create Account',
+    'sub_title' => 'Join us on your journey to personalized wellness',
+])
+
 
 @section('content')
     <div class="container">
