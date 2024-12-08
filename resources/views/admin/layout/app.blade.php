@@ -8,14 +8,18 @@
     <meta charset="utf-8">
     <meta http-equiv="x-ua-compatible" content="ie=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="">
-    <meta name="author" content="">
-    <meta name="keywords" content="">
-
-    <!-- Favicon -->
-    <link rel="shortcut icon" type="image/x-icon" href="{{ secure_asset('favicon.ico') }}">
-    <meta name="msapplication-TileColor" content="#da532c">
-    <meta name="theme-color" content="#ffffff">
+    @php
+        $metadataService = new App\Services\General\MetadataService();
+        $metadata = $metadataService->createMetadata([
+            'title' => $title ?? null,
+            'description' => $description ?? null,
+            'openGraph' => [
+                'title' => $title ?? null,
+                'description' => $description ?? null,
+            ],
+        ]);
+    @endphp
+    {!! $metadataService->renderMetaTags($metadata) !!}
 
     <!-- Google Font-->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -59,9 +63,6 @@
         }
     </style>
     {{-- </noscript> --}}
-
-    <!-- Page Title -->
-    <title>Admin | Farsk Health</title>
 
 </head>
 
