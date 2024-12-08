@@ -67,50 +67,52 @@ class UpdateService
 
     public function handle(array $data)
     {
-        $this->validate($data);
-        logger("Session data", $data);
-        $form = FormSession::whereIn("status", [
-            StatusConstants::PENDING,
-            StatusConstants::PROCESSING,
-        ])->find($data["sessionId"]);
+        return DB::transaction(function () use ($data) {
+            $this->validate($data);
+            logger("Session data", $data);
+            $form = FormSession::whereIn("status", [
+                StatusConstants::PENDING,
+                StatusConstants::PROCESSING,
+            ])->find($data["sessionId"]);
 
-        if (empty($form)) {
-            throw new GeneralException("Action not permitted");
-        }
-
-        $this->formSession = $form;
-        if ($data["step"] != self::STEP_PRODUCT) {
-            unset($data["formData"]["selectedProducts"]);
-        }
-
-        $meta = $this->formSession->metadata ?? [];
-        if ($data["step"] != self::STEP_SIGN) {
-            if (!empty($raw = $data["formData"] ?? null)) {
-                $meta["raw"] = array_merge($meta["raw"] ?? [], $raw);
-                $this->formSession->update([
-                    "metadata" => $meta
-                ]);
-                $this->formSession->refresh();
+            if (empty($form)) {
+                throw new GeneralException("Action not permitted");
             }
 
+            $this->formSession = $form;
+            if ($data["step"] != self::STEP_PRODUCT) {
+                unset($data["formData"]["selectedProducts"]);
+            }
 
-            $formatted_data = $this->mapFields($data);
+            $meta = $this->formSession->metadata ?? [];
+            if ($data["step"] != self::STEP_SIGN) {
+                if (!empty($raw = $data["formData"] ?? null)) {
+                    $meta["raw"] = array_merge($meta["raw"] ?? [], $raw);
+                    $this->formSession->update([
+                        "metadata" => $meta
+                    ]);
+                    $this->formSession->refresh();
+                }
 
-            $response = [];
-            foreach (self::STEPS as $step) {
-                if ($data["step"] == $step) {
-                    $method_name = "handle" . ucfirst($step);
-                    if (method_exists($this, $method_name)) {
-                        $response = call_user_func([$this, $method_name], $formatted_data);
+
+                $formatted_data = $this->mapFields($data);
+
+                $response = [];
+                foreach (self::STEPS as $step) {
+                    if ($data["step"] == $step) {
+                        $method_name = "handle" . ucfirst($step);
+                        if (method_exists($this, $method_name)) {
+                            $response = call_user_func([$this, $method_name], $formatted_data);
+                        }
                     }
                 }
+                return array_merge($response, [
+                    "paid" => $this->formSession->completedPayment()->exists(),
+                ]);
             }
-            return array_merge($response, [
-                "paid" => $this->formSession->completedPayment()->exists(),
-            ]);
-        }
 
-        return $this->handleComplete($data);
+            return $this->handleComplete($data);
+        });
     }
 
     public function mapFields(array $data)
@@ -173,6 +175,7 @@ class UpdateService
     {
         return DB::transaction(function () use ($data) {
             $dto = new DTOService($this->formSession);
+            $dto->validate();
             // $user = User::where("email", $dto->email())->first();
 
             // if(empty($user)){

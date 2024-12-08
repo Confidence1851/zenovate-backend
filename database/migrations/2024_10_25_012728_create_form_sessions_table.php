@@ -17,7 +17,7 @@ return new class extends Migration
             $table->string("reference")->unique();
             $table->json("metadata")->nullable();
             $table->string("status");
-            $table->string("pdf_path")->nullable();
+            $table->text("pdf_path")->nullable();
             $table->string("docuseal_id")->nullable()->unique();
             $table->text("docuseal_url")->nullable();
             $table->text("comment")->nullable();

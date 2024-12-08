@@ -9,7 +9,6 @@ use App\Helpers\StatusConstants;
 use App\Models\FormSession;
 use App\Models\FormSessionActivity;
 use App\Notifications\Form\Session\Customer\DeclinedNotification;
-use App\Notifications\Form\Session\Customer\StatusNotification;
 use App\Services\Form\Payment\StripeService;
 use App\Services\General\Pdf\MpdfService;
 use Illuminate\Support\Facades\DB;
@@ -60,7 +59,8 @@ class SignService
     {
         $url = "https://api.docuseal.com/templates/pdf";
 
-        $this->generatePdf(true);
+        $this->generatePdf("pdf_path", true);
+        $this->generatePdf("consent_pdf_path", true);
         $content = file_get_contents(storage_path("app/" . $this->session->pdf_path));
         $base64String = base64_encode($content);
         $name = "Session-#" . $this->session->reference;
@@ -86,7 +86,7 @@ class SignService
         return $response->json();
     }
 
-    public function generatePdf(bool $save = false)
+    public function generatePdf($column, bool $save = false)
     {
         $file_path = null;
         try {
@@ -95,12 +95,16 @@ class SignService
                 "payment" => $this->session->completedPayment,
             ];
 
-            $service = (new MpdfService)->generate(view("templates.forms.pdf.summary", $data));
+            $templates = [
+                "pdf_path" => "templates.forms.pdf.summary",
+                "consent_pdf_path" => "templates.forms.pdf.consent",
+            ];
+            $service = (new MpdfService)->generate(view($templates[$column], $data));
             if (!$save) {
                 return $service->output();
             }
 
-            $folder = storage_path("app/pdf/form_sessions");
+            $folder = storage_path("app/pdf/form_sessions/$column");
             Helper::withDir($folder);
             $file_name = $this->session->id . ".pdf";
             $file_path = $folder . "/" . $file_name;
@@ -108,7 +112,7 @@ class SignService
             $service->save($file_path);
 
             $this->session->update([
-                "pdf_path" => $relative_file_path
+                $column => $relative_file_path
             ]);
             $this->session->refresh();
         } catch (\Throwable $e) {

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\FormController;
 use App\Http\Controllers\Api\WebsiteController;
 use Illuminate\Support\Facades\Route;
@@ -13,6 +14,11 @@ Route:: as("api.")->group(function () {
         Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
         Route::post('/reset-password', [AuthController::class, 'resetPassword']);
     });
+
+    Route::prefix('dashboard')->middleware("auth:sanctum")->group(function () {
+        Route::get('/orders', [DashboardController::class, 'orders']);
+    });
+
 
     Route::prefix('website')->group(function () {
         Route::post('/contact-us', [WebsiteController::class, 'contactUs']);
