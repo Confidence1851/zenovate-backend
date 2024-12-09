@@ -2,6 +2,7 @@
 
 namespace App\Services\Form\Session;
 
+use App\Exceptions\GeneralException;
 use App\Helpers\StatusConstants;
 use App\Models\FormSession;
 use App\Models\Payment;
@@ -56,6 +57,15 @@ class DTOService
         return $v;
     }
 
+    function dob2(){
+        $v = $this->dob();
+        if(empty($v)){
+            return;
+        }
+        return Carbon::parse($v)->format("m/d/Y");
+    }
+
+
     // Contact Information
     function email()
     {
@@ -104,10 +114,40 @@ class DTOService
         return $this->payment;
     }
 
+    function signatureDate()
+    {
+        return now()->format("m/d/Y");
+    }
+
     // Selected Products
     function selectedProducts()
     {
         return $this->payment?->products ?? [];
+    }
+
+    function validate()
+    {
+        $required_fields = [
+            "first_name" => $this->firstName(),
+            "last_name" => $this->lastName(),
+            "email" => $this->email(),
+            "dob" => $this->dob(),
+            "selected_products" => $this->selectedProducts(),
+            "payment" => $this->payment(),
+            "street_address" => $this->streetAddress(),
+            "country" => $this->country(),
+            "current_medications" => $this->session->metadata["raw"]["currentMedications"] ?? null,
+            "previous_surgeries" => $this->session->metadata["raw"]["previousSurgeries"] ?? null,
+            "other_conditions" => $this->session->metadata["raw"]["otherConditions"] ?? null,
+            "injectable_concerns" => $this->session->metadata["raw"]["injectablesConcerns"] ?? null,
+        ];
+
+        foreach ($required_fields as $key => $value) {
+            if(empty($value)){
+                logger("Empty value", [$key, $value]);
+                throw new GeneralException("Fields are yet to be complete.");
+            }
+        }
     }
 
     function questions()

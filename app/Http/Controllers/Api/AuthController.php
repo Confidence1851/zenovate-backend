@@ -6,6 +6,7 @@ use App\Exceptions\GeneralException;
 use App\Helpers\ApiConstants;
 use App\Helpers\ApiHelper;
 use App\Http\Controllers\Controller;
+use App\Http\Resources\UserResource;
 use App\Services\Auth\AuthService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -108,6 +109,44 @@ class AuthController extends Controller
             return ApiHelper::problemResponse(
                 $e->getMessage(),
                 $e->getCode()
+            );
+        } catch (Throwable $e) {
+            return $this->throwableError($e);
+        }
+    }
+
+
+    function authenticate(Request $request)
+    {
+        try {
+            $process = $this->authService->authenticate($request->all());
+            return ApiHelper::validResponse(
+                'Authenticated successfully',
+                $process
+            );
+        } catch (ValidationException $e) {
+            return ApiHelper::inputErrorResponse(
+                $e->getMessage(),
+                ApiConstants::VALIDATION_ERR_CODE,
+                $request,
+                $e
+            );
+        } catch (GeneralException $e) {
+            return ApiHelper::problemResponse(
+                $e->getMessage(),
+                $e->getCode()
+            );
+        } catch (Throwable $e) {
+            return $this->throwableError($e);
+        }
+    }
+
+    function me(Request $request)
+    {
+        try {
+            return ApiHelper::validResponse(
+                'Authenticated successfully',
+                UserResource::make($request->user())
             );
         } catch (Throwable $e) {
             return $this->throwableError($e);

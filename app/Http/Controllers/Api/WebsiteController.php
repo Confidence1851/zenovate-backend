@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Exceptions\GeneralException;
 use App\Helpers\ApiConstants;
 use App\Helpers\ApiHelper;
+use App\Helpers\Helper;
 use App\Http\Controllers\Controller;
 use App\Services\General\WebsiteService;
 use Illuminate\Http\Request;
@@ -65,5 +66,9 @@ class WebsiteController extends Controller
     }
 
 
+    function getFile($hash) {
+        $decrypt = Helper::encrypt_decrypt("decrypt", $hash);
+        return Helper::getFileFromPrivateStorage($decrypt);
+    }
 
 }
