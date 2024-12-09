@@ -211,6 +211,8 @@ class UpdateService
                 "expires_at" => now()->addMinute()
             ]));
             $redirect_url = env("FRONTEND_APP_SITE_URL") . "/auth/authenticate/$hash";
+
+            logger("COmplete", [$redirect_url]);
             return [
                 "redirect_url" => $redirect_url
             ];

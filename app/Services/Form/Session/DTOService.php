@@ -136,14 +136,15 @@ class DTOService
             "payment" => $this->payment(),
             "street_address" => $this->streetAddress(),
             "country" => $this->country(),
-            "current_medications" => $this->session->metadata["raw"]["currentMedications"],
-            "previous_surgeries" => $this->session->metadata["raw"]["previousSurgeries"],
-            "other_conditions" => $this->session->metadata["raw"]["otherConditions"],
-            "injectable_concerns" => $this->session->metadata["raw"]["injectablesConcerns"],
+            "current_medications" => $this->session->metadata["raw"]["currentMedications"] ?? null,
+            "previous_surgeries" => $this->session->metadata["raw"]["previousSurgeries"] ?? null,
+            "other_conditions" => $this->session->metadata["raw"]["otherConditions"] ?? null,
+            "injectable_concerns" => $this->session->metadata["raw"]["injectablesConcerns"] ?? null,
         ];
 
         foreach ($required_fields as $key => $value) {
             if(empty($value)){
+                logger("Empty value", [$key, $value]);
                 throw new GeneralException("Fields are yet to be complete.");
             }
         }

@@ -22,9 +22,17 @@ class DashboardController extends Controller
     function orders(Request $request)
     {
         try {
-            $forms = FormSession::query()
-                // ->where("user_id", $request->user()->id)
-                ->latest()->paginate();
+            $builder = FormSession::query();
+
+            if (!empty($key = $request->search)) {
+                $builder = $builder->search($key);
+            }
+
+            if (!empty($key = $request->status)) {
+                $builder = $builder->where("status", $key);
+            }
+            // $builder = $builder->where("user_id", $request->user()->id);
+            $forms = $builder->latest()->paginate();
             $data = ApiHelper::collect_pagination($forms);
             $data["data"] = FormSessionResource::collection($data["data"]);
             return ApiHelper::validResponse(

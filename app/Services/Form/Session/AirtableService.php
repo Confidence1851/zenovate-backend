@@ -2,6 +2,7 @@
 
 namespace App\Services\Form\Session;
 
+use App\Helpers\Helper;
 use App\Models\FormSession;
 use App\Models\Product;
 use App\Services\Form\Session\DTOService;
@@ -89,12 +90,16 @@ class AirtableService
                     "Medications" => $this->valOrNo('medicationsDetails'),
                     "Troubleshoot Tickets" => null,
                     "Delivery Cost" => null,
-                    "Barcode" => null
+                    "Barcode" => null,
                 ],
             ]
         ]);
 
 
+        $file_url = route(
+            "api.get-file",
+            Helper::encrypt_decrypt("encrypt", $session->consent_pdf_path)
+        );
         $order = $this->createRecord("Orders", [
             [
                 "fields" => [
@@ -108,6 +113,11 @@ class AirtableService
                     // "Paid" => null,
                     // "Shipped" => null,
                     "Product" => $product_ids,
+                    "Consent File" => [
+                        [
+                            "url" => $file_url
+                        ]
+                    ]
                     // "P.U / Del. Date" => null,
                     // "Tracking" => null,
                     // "Counseling" => null
@@ -140,9 +150,10 @@ class AirtableService
         return $id;
     }
 
-    function valOrNo($key)  {
+    function valOrNo($key)
+    {
         $val = trim($session->metadata['raw'][$key] ?? null);
-        if(empty($val)){
+        if (empty($val)) {
             return "No";
         }
         return $val;

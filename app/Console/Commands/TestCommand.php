@@ -38,9 +38,9 @@ class TestCommand extends Command
         // dd($redirect_url);
         // $t = "RU4rRVlyU0ZJM1doRXN2V3JlTXlISEo2SWxvZmpRc1dmZDVRemJhek1xeDdpQUMyR3NySlY0V2NVNFJNMWVxUWRSc3FvZHp5cFY4SEtrNTMvZDhGM2poT0FSdkt4OW5ESWdTQnIyWGltTGs9";
         // dd((new EncryptionService)->decrypt(base64_decode($t)));
-        // $session = FormSession::find("9d85af3c-70b9-4455-b707-634f945daa89");
+        $session = FormSession::find("9dac7c08-d22d-418f-a29d-79ab752cc717");
 
-        (new SignService(FormSession::find("9da9abbe-ed51-4289-9e20-f2e030281a61")))->generatePdf("consent_pdf_path", true);
+        (new SignService($session))->generatePdf("consent_pdf_path", true);
         // dd();
         // auth()->loginUsingId(1);
         // (new SignService($session))->handleAdminReview([
@@ -49,6 +49,6 @@ class TestCommand extends Command
         // ]);
 
         // (new SignService($session))->sendToSigners();
-        // (new AirtableService)->pushData($session);
+        (new AirtableService)->pushData($session);
     }
 }

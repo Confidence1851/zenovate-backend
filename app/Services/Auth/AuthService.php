@@ -3,8 +3,11 @@
 namespace App\Services\Auth;
 
 use App\Exceptions\GeneralException;
+use App\Helpers\ApiConstants;
 use App\Helpers\AppConstants;
+use App\Helpers\EncryptionService;
 use App\Helpers\Helper;
+use App\Http\Resources\UserResource;
 use App\Models\User;
 use App\Notifications\CustomerResetPasswordNotification;
 use Carbon\Carbon;
@@ -39,7 +42,7 @@ class AuthService
             $token = $user->createToken('auth_token')->plainTextToken;
 
             return [
-                'user' => $user,
+                'user' => UserResource::make($user),
                 'token' => $token,
             ];
         });
@@ -68,7 +71,7 @@ class AuthService
             $token = $user->createToken('auth_token')->plainTextToken;
 
             return [
-                'user' => $user,
+                'user' => UserResource::make($user),
                 'token' => $token,
             ];
         });
@@ -113,4 +116,38 @@ class AuthService
         $user->update(["password" => Hash::make($data["password"])]);
     }
 
+
+    public function authenticate(array $data)
+    {
+        return DB::transaction(function () use ($data) {
+            $validator = Validator::make($data, [
+                "hash" => "required|string",
+            ]);
+
+            if ($validator->fails()) {
+                throw new ValidationException($validator);
+            }
+
+            $decrypted = (new EncryptionService)->decrypt(base64_decode($data["hash"]));
+
+            if($decrypted["key"] != "authenticate"){
+                throw new GeneralException("Invalid token" , ApiConstants::BAD_REQ_ERR_CODE);
+            }
+
+            if (Carbon::parse($decrypted["expires_at"])->isPast()) {
+                throw new GeneralException("Token has expired", ApiConstants::BAD_REQ_ERR_CODE);
+            }
+
+            // Attempt to authenticate the user
+            $user = User::where('id', $decrypted["value"])->first();
+
+            // Generate a token for the user
+            $token = $user->createToken('auth_token')->plainTextToken;
+
+            return [
+                'user' => $user,
+                'token' => $token,
+            ];
+        });
+    }
 }
