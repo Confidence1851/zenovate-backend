@@ -22,7 +22,8 @@ class DashboardController extends Controller
     function orders(Request $request)
     {
         try {
-            $builder = FormSession::query();
+            $builder = FormSession::query()
+                ->with("completedPayment");
 
             if (!empty($key = $request->search)) {
                 $builder = $builder->search($key);
@@ -31,7 +32,7 @@ class DashboardController extends Controller
             if (!empty($key = $request->status)) {
                 $builder = $builder->where("status", $key);
             }
-            // $builder = $builder->where("user_id", $request->user()->id);
+            $builder = $builder->where("user_id", $request->user()->id);
             $forms = $builder->latest()->paginate();
             $data = ApiHelper::collect_pagination($forms);
             $data["data"] = FormSessionResource::collection($data["data"]);
@@ -45,6 +46,28 @@ class DashboardController extends Controller
                 ApiConstants::VALIDATION_ERR_CODE,
                 $request,
                 $e
+            );
+        } catch (GeneralException $e) {
+            return ApiHelper::problemResponse(
+                $e->getMessage(),
+                $e->getCode()
+            );
+        } catch (Throwable $e) {
+            return $this->throwableError($e);
+        }
+    }
+
+    function orderInfo(Request $request, $id)
+    {
+        try {
+            $form = FormSession::query()
+                ->with("completedPayment")
+                ->with("completedPayment.products")
+                ->where("user_id", $request->user()->id)
+                ->find($id);
+            return ApiHelper::validResponse(
+                'Data retrieved successfully',
+                FormSessionResource::make($form)
             );
         } catch (GeneralException $e) {
             return ApiHelper::problemResponse(

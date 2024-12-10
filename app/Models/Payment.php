@@ -10,7 +10,8 @@ class Payment extends Model
     protected $guarded = ['id'];
 
     protected $casts = [
-        'metadata' => 'array'
+        'metadata' => 'array',
+        'paid_at' => 'datetime',
     ];
 
     function formSession()
@@ -39,7 +40,7 @@ class Payment extends Model
     }
 
     function getAmount($key) {
-        return $this->currency ." ".number_format($this->$key,2);
+        return $this->currency ."".number_format($this->$key,2);
     }
 
 }

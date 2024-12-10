@@ -54,7 +54,7 @@ class User extends Authenticatable
     public function scopeSearch($query, $keyword)
     {
         $query->where(function ($q) use ($keyword) {
-            $q->whereRaw('CONCAT(first_name, " ", last_name) LIKE?', ["%$keyword%"]);
+            $q->whereRaw("CONCAT(first_name, ' ', last_name) LIKE ?", ["%$keyword%"]);
         });
     }
 
