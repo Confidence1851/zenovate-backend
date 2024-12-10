@@ -34,7 +34,7 @@ class FormSession extends Model
     public function scopeSearch($query, $keyword)
     {
         $query->where(function ($q) use ($keyword) {
-            $q->whereRaw('CONCAT(reference, " ", metadata) LIKE?', ["%$keyword%"]);
+            $q->whereRaw("CONCAT(reference, ' ', metadata) LIKE ?", ["%$keyword%"]);
         });
     }
 

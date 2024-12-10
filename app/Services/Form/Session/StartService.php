@@ -25,7 +25,6 @@ class StartService
 
     public function handle(array $data)
     {
-
         return FormSession::create([
             "status" => StatusConstants::PENDING,
             "reference" => self::generateReference(),

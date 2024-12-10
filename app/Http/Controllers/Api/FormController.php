@@ -212,4 +212,49 @@ class FormController extends Controller
             return $this->throwableError($e);
         }
     }
+
+    function recreate(Request $request, $id)
+    {
+        try {
+            $form = FormSession::where("user_id", $request->user()->id)->find($id);
+            if (empty($form)) {
+                return ApiHelper::problemResponse(
+                    "Invalid session",
+                    ApiConstants::NOT_FOUND_ERR_CODE,
+                );
+            }
+            $session = FormSession::whereIn("status", [
+                StatusConstants::PENDING,
+                StatusConstants::PROCESSING,
+            ])
+            ->where("user_id", $request->user()->id)
+            ->latest()
+            ->first();
+
+            if(empty($session)){
+                $session = (new StartService)->handle($request->all());
+            }
+            $meta = $session->metadata ?? [];
+            $old_formdata = $form->metadata["raw"];
+            // unset($old_formdata["selectedProducts"]);
+            $meta["raw"] = $old_formdata;
+            $session->update([
+                "user_id" => $form->user_id,
+                "metadata" => $meta
+            ]);
+            return ApiHelper::validResponse(
+                'Session rereated successfully',
+                [
+                    "id" => $session->id
+                ]
+            );
+        } catch (GeneralException $e) {
+            return ApiHelper::problemResponse(
+                $e->getMessage(),
+                ApiConstants::BAD_REQ_ERR_CODE
+            );
+        } catch (Throwable $e) {
+            return $this->throwableError($e);
+        }
+    }
 }

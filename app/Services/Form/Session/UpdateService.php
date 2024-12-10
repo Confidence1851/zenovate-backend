@@ -132,7 +132,7 @@ class UpdateService
 
     public function parseGeoData()
     {
-        $country = trim($this->formSession->metadata["raw"]["country"]);
+        $country = trim($this->formSession->metadata["raw"]["country"] ?? '');
         if (strtolower($country) == "Canada") {
             return [
                 "currency" => "CAD",
@@ -176,13 +176,6 @@ class UpdateService
         return DB::transaction(function () use ($data) {
             $dto = new DTOService($this->formSession);
             $dto->validate();
-            // $user = User::where("email", $dto->email())->first();
-
-            // if(empty($user)){
-            //     $user = (new UserService)->save($data);
-            // }
-
-            // (new CustomerService)->save($user, $data);
 
             $this->formSession->update([
                 "status" => StatusConstants::AWAITING_REVIEW

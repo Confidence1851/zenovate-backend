@@ -22,6 +22,7 @@ Route:: as("api.")->group(function () {
 
     Route::prefix('dashboard')->middleware("auth:sanctum")->group(function () {
         Route::get('/orders', [DashboardController::class, 'orders']);
+        Route::get('/orders/{id}', [DashboardController::class, 'orderInfo']);
     });
 
 
@@ -34,6 +35,7 @@ Route:: as("api.")->group(function () {
         Route::get('/products', [FormController::class, 'productIndex'])->name('products.index');
         Route::get('/products/{id}', [FormController::class, 'productInfo'])->name('products.info');
         Route::get('/session/info/{id}', [FormController::class, 'info'])->name('session.info');
+        Route::post('/session/recreate/{id}', [FormController::class, 'recreate'])->name('session.recreate')->middleware("auth:sanctum");
         Route::post('/session/start', [FormController::class, 'startSession'])->name('session.start');
         Route::post('/session/update', [FormController::class, 'updateSession'])->name('session.update');
         Route::any('/session/payment/callback/{payment_id}/{status}', [FormController::class, 'paymentCallback'])->name('session.payment.callback');
