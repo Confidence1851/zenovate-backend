@@ -2,6 +2,7 @@
 
 namespace App\Services\General;
 
+use App\Models\Product;
 use Str;
 
 class ProductService
@@ -21,13 +22,13 @@ class ProductService
         $counter = 1;
 
         // Ensure slug uniqueness
-        while (\App\Models\Product::where('slug', $slug)->exists()) {
+        while (Product::where('slug', $slug)->withTrashed()->exists()) {
             $slug = substr($baseSlug, 0, 20 - strlen("-$counter")) . "-$counter";
             $counter++;
         }
 
         // Update the product's slug if a product instance is provided
-        if ($product) {
+        if ($product?->id) {
             $product->slug = $slug;
             $product->save();
         }
