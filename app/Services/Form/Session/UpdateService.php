@@ -15,6 +15,7 @@ use App\Notifications\Form\Session\Customer\ReceivedNotification;
 use App\Services\Auth\CustomerService;
 use App\Services\Auth\UserService;
 use App\Services\Form\Payment\ProcessorService;
+use App\Services\General\IpAddressService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Validator;
@@ -132,18 +133,27 @@ class UpdateService
 
     public function parseGeoData()
     {
-        $country = trim($this->formSession->metadata["raw"]["country"] ?? '');
-        if (strtolower($country) == "Canada") {
+        $info = IpAddressService::info();
+
+        if (empty($info)) {
+            $country = trim($this->formSession->metadata["raw"]["country"] ?? '');
+            if (strtolower($country) == "Canada") {
+                return [
+                    "currency" => "CAD",
+                    "country_code" => "CA",
+                    "country" => "Canada"
+                ];
+            }
             return [
-                "currency" => "CAD",
-                "country_code" => "CA",
-                "country" => "Canada"
+                "currency" => "USD",
+                "country_code" => "US",
+                "country" => "United States"
             ];
         }
         return [
-            "currency" => "USD",
-            "country_code" => "US",
-            "country" => "United States"
+            "currency" => $info["currency"],
+            "country_code" => $info["countryCode"],
+            "country" => $info["country"]
         ];
     }
 

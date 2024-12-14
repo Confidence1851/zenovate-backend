@@ -7,6 +7,7 @@ use App\Helpers\Helper;
 use App\Models\FormSession;
 use App\Services\Form\Session\AirtableService;
 use App\Services\Form\Session\SignService;
+use App\Services\General\IpAddressService;
 use Illuminate\Console\Command;
 
 class TestCommand extends Command
@@ -30,6 +31,7 @@ class TestCommand extends Command
      */
     public function handle()
     {
+        dd(IpAddressService::info("80.6.134.248" , true));
         // $hash = base64_encode((new EncryptionService)->encrypt([
         //     "key" => "payment",
         //     "value" => "9d92116e-939e-441d-8ad2-7b6fbd8bfdb8"

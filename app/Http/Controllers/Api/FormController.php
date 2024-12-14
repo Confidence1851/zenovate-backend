@@ -7,6 +7,7 @@ use App\Helpers\ApiConstants;
 use App\Helpers\ApiHelper;
 use App\Helpers\StatusConstants;
 use App\Http\Controllers\Controller;
+use App\Http\Resources\ProductResource;
 use App\Models\FormSession;
 use App\Models\Product;
 use App\Services\Form\Session\StartService;
@@ -99,16 +100,12 @@ class FormController extends Controller
     function productIndex()
     {
         try {
+
             return ApiHelper::validResponse(
                 'Products retrieved successfully',
-                Product::get([
-                    "id",
-                    "name",
-                    "subtitle",
-                    "description",
-                    "price",
-                    "slug"
-                ])
+                ProductResource::collection(
+                    Product::get()
+                )
             );
         } catch (GeneralException $e) {
             return ApiHelper::problemResponse(
@@ -125,16 +122,10 @@ class FormController extends Controller
         try {
             return ApiHelper::validResponse(
                 'Product retrieved successfully',
-                Product::select([
-                    "id",
-                    "name",
-                    "subtitle",
-                    "description",
-                    "price",
-                    "slug"
-                ])
-                ->where("slug" , $id)
-                ->firstOrFail()
+                ProductResource::make(
+                    Product::where("slug", $id)
+                        ->firstOrFail()
+                )
             );
         } catch (ModelNotFoundException $e) {
             return ApiHelper::problemResponse(
@@ -147,7 +138,6 @@ class FormController extends Controller
                 ApiConstants::BAD_REQ_ERR_CODE
             );
         } catch (Throwable $e) {
-            dd($e);
             return $this->throwableError($e);
         }
     }

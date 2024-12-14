@@ -187,5 +187,25 @@ class Helper
 
         return $token;
     }
+
+    /**Returns formatted money value
+     * @param float amount
+     * @param int places
+     * @param string symbol
+     */
+    static function formatMoney($amount, $places = 2, $symbol = '$')
+    {
+        return $symbol . '' . self::intFormat((float) $amount, $places);
+    }
+
+    static function intFormat($number, $decimals = 0, $decPoint = '.', $thousandsSep = ',')
+    {
+        $negation = ($number < 0) ? (-1) : 1;
+        $coefficient = 10 ** $decimals;
+        $number = $negation * floor((string) (abs($number) * $coefficient)) / $coefficient;
+
+        return number_format($number, $decimals, $decPoint, $thousandsSep);
+    }
+
 }
 

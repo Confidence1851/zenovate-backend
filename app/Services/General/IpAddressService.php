@@ -10,6 +10,7 @@ use Stevebauman\Location\Facades\Location;
 class IpAddressService
 {
 
+
     public static function check($ip_address)
     {
         $curl = curl_init();
@@ -30,19 +31,29 @@ class IpAddressService
         return $data ?? [];
     }
 
-    public static function getCountry()
+    public static function info($ip_address = null , $force = false)
     {
-        $current = cache()->get("location_country");
-        $location = DataConstants::CANADA;
-        if (empty($current)) {
-            $check = self::check(request()->ip());
-            if ($check["status"] == "success") {
-                $location = $check["countryCode"] == "US" ? DataConstants::USA : $location;
-            }
-            cache()->put("location_country", $location, now()->addMinutes(10));
-        }else{
-            $location = $current;
+        $ip_address = $ip_address ?? request()->ip();
+        $key = "location_country_{$ip_address}";
+
+        if($force){
+            cache()->forget($key);
         }
-        return $location;
+
+        $info = cache()->get($key , []);
+        if (empty($info)) {
+            $check = self::check($ip_address);
+            if ($check["status"] == "success") {
+                cache()->put($key, $check, now()->addMinutes(10));
+                $currencies = [
+                    "CA" => "CAD",
+                    "US" => "USD",
+                ];
+                $check["currency"] = $currencies[$check["countryCode"]] ?? "USD";
+                $info = $check;
+            }
+        }
+
+        return $info;
     }
 }
