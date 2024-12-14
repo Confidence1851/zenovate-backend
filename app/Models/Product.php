@@ -21,7 +21,8 @@ class Product extends Model
 
         $list = [];
         foreach ($this->price as $value) {
-            $value["id"] = Helper::encrypt(json_encode($value));
+            $price_id = ["product_id" => $this->id, "value" => $value];
+            $value["id"] = Helper::encrypt(json_encode($price_id));
             $value["value"] = $value["values"][strtolower($currency)];
             $value["currency"] = $currency;
             unset($value["values"]);
