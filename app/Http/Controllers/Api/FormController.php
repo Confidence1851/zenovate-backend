@@ -13,6 +13,7 @@ use App\Services\Form\Session\StartService;
 use App\Services\Form\Session\UpdateService;
 use App\Services\Form\Payment\ProcessorService;
 use App\Services\Form\Session\WebhookService;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Throwable;
@@ -105,7 +106,8 @@ class FormController extends Controller
                     "name",
                     "subtitle",
                     "description",
-                    "price"
+                    "price",
+                    "slug"
                 ])
             );
         } catch (GeneralException $e) {
@@ -128,8 +130,16 @@ class FormController extends Controller
                     "name",
                     "subtitle",
                     "description",
-                    "price"
-                ])->findOrFail($id)
+                    "price",
+                    "slug"
+                ])
+                ->where("slug" , $id)
+                ->firstOrFail()
+            );
+        } catch (ModelNotFoundException $e) {
+            return ApiHelper::problemResponse(
+                "No product dound with the id provided.",
+                ApiConstants::BAD_REQ_ERR_CODE
             );
         } catch (GeneralException $e) {
             return ApiHelper::problemResponse(
@@ -137,6 +147,7 @@ class FormController extends Controller
                 ApiConstants::BAD_REQ_ERR_CODE
             );
         } catch (Throwable $e) {
+            dd($e);
             return $this->throwableError($e);
         }
     }
