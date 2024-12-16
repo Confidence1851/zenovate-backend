@@ -31,6 +31,11 @@ class Payment extends Model
         );
     }
 
+    function paymentProducts()
+    {
+        return $this->hasMany(PaymentProduct::class, "payment_id" , "id");
+    }
+
     public function scopeSearch($query, $key)
     {
         $query->whereHas("formSession", function ($sub) use ($key) {

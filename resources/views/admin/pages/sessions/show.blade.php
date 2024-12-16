@@ -140,17 +140,15 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    @forelse ($dto->selectedProducts() as $product)
+                                    @forelse ($dto->paymentProducts() as $paymentProduct)
                                         <tr>
-                                            <td>{{ $product->name }}</td>
+                                            <td>{{ $paymentProduct->product->name }}</td>
                                             <td>1</td>
-                                            <td>{{ strtoupper($dto->payment->currency) }}
-                                                {{ number_format($product->price, 2) }}</td>
+                                            <td>{{ $paymentProduct->getPrice() }}</td>
                                         </tr>
                                     @empty
                                         <tr>
-                                            <td colspan="3">No products selected at the
-                                                moment</td>
+                                            <td colspan="3">No products selected at the moment</td>
                                         </tr>
                                     @endforelse
                                 </tbody>
@@ -180,8 +178,7 @@
                                         </tr>
                                     @empty
                                         <tr>
-                                            <td colspan="3">No products selected at the
-                                                moment</td>
+                                            <td colspan="3">No activities at the moment</td>
                                         </tr>
                                     @endforelse
                                 </tbody>

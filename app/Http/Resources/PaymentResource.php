@@ -21,7 +21,7 @@ class PaymentResource extends JsonResource
             "total" => $this->getAmount("total"),
             "status" => $this->status,
             "paid_at" => $this->paid_at?->format("Y-m-d h:i A"),
-            'products' => ProductResource::collection($this->whenLoaded("products")),
+            'products' => PaymentProductResource::collection($this->whenLoaded("paymentProducts")),
         ];
     }
 }

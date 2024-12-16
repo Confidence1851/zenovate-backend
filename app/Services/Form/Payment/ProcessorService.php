@@ -40,7 +40,9 @@ class ProcessorService
         foreach ($data["products"] as $product) {
             PaymentProduct::firstOrCreate([
                 "payment_id" => $payment->id,
-                "product_id" => $product->id
+                "product_id" => $product->id,
+            ], [
+                "price" => $product->selected_price
             ]);
         }
 

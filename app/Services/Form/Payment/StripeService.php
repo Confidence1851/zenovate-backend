@@ -147,7 +147,7 @@ class StripeService
             $line_items[] = [
                 'price_data' => [
                     'currency' => $this->currency,
-                    'unit_amount' => $product->price * 100,
+                    'unit_amount' => $product->selected_price["value"] * 100,
                     'product_data' => [
                         'name' => $product->name,
                         // 'images' => [$image],
