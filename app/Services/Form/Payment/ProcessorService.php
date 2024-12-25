@@ -87,7 +87,7 @@ class ProcessorService
     {
         $payment = Payment::whereHas("formSession")->findOrFail($data["payment_id"]);
         $service = new StripeService;
-        $service->setPayment($payment)
+        $service->setPayment(value: $payment)
             ->verify($data);
 
         $hash = base64_encode((new EncryptionService)->encrypt([

@@ -27,7 +27,6 @@ class MpdfService
 
     public function generate(View $view)
     {
-        // dd($view->render());
     //     $bg_img =
     // "https://d1csarkz8obe9u.cloudfront.net/posterpreviews/school-logo-design-template-b3bfdceb55d1cbc48f1ce50fd4e1ef24_screen.jpg?ts=1629941736";
 

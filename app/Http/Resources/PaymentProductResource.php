@@ -25,7 +25,7 @@ class PaymentProductResource extends JsonResource
             "key_ingredients" => $product->key_ingredients,
             "benefits" => $product->benefits,
             "quantity" => 1,
-            "selected_price" => $product->price,
+            "selected_price" => $this->getPrice(),
         ];
     }
 }

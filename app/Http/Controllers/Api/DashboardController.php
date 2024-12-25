@@ -6,6 +6,7 @@ use App\Exceptions\GeneralException;
 use App\Helpers\ApiConstants;
 use App\Helpers\ApiHelper;
 use App\Http\Controllers\Controller;
+use App\Http\Resources\FormSessionFullResource;
 use App\Http\Resources\FormSessionResource;
 use App\Models\FormSession;
 use App\Services\General\WebsiteService;
@@ -67,7 +68,7 @@ class DashboardController extends Controller
                 ->find($id);
             return ApiHelper::validResponse(
                 'Data retrieved successfully',
-                FormSessionResource::make($form)
+                FormSessionFullResource::make($form)
             );
         } catch (GeneralException $e) {
             return ApiHelper::problemResponse(

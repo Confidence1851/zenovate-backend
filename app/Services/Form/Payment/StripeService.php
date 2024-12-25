@@ -92,13 +92,6 @@ class StripeService
 
     public function charge()
     {
-        // dd([
-        //     "amount" => $this->amount * 100,
-        //     "currency" => $this->currency,
-        //     "source" => $this->source,
-        //     "description" => $this->description,
-        //     "receipt_email" => $this->receipt_email
-        // ]);
         $this->chargeResponse = PaymentIntent::create([
             "amount" => $this->amount * 100,
             "currency" => $this->currency,
@@ -182,8 +175,28 @@ class StripeService
                 try {
                     $paymentIntent = $this->stripeClient->paymentIntents->retrieve($check->payment_intent);
                     $charge = $this->stripeClient->charges->retrieve($paymentIntent->latest_charge);
+                    $method = $this->stripeClient->paymentMethods->retrieve($paymentIntent->payment_method);
+
+                    $method_info = [];
+                    if ($method->type == "card") {
+                        $method_info = [
+                            "brand" => $method->card->brand,
+                            "last_digits" => $method->card->last4,
+                            "exp_month" => $method->card->exp_month,
+                            "exp_year" => $method->card->exp_year,
+                        ];
+                    }
+
                     $this->payment->update([
-                        "receipt_url" => $charge->receipt_url
+                        "receipt_url" => $charge->receipt_url,
+                        "metadata" => [
+                            "shipping_address" => $method->billing_details->address,
+                            "email" => $method->billing_details->email,
+                            "phone" => $method->billing_details->phone,
+                        ],
+                        "method" => $method->type,
+                        "method_info" => $method_info
+
                     ]);
                 } catch (\Throwable $th) {
                     //throw $th;

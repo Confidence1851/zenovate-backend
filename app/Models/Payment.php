@@ -11,6 +11,7 @@ class Payment extends Model
 
     protected $casts = [
         'metadata' => 'array',
+        'method_info' => 'array',
         'paid_at' => 'datetime',
     ];
 
