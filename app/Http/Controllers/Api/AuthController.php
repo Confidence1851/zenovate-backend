@@ -17,6 +17,8 @@ class AuthController extends Controller
     function __construct(public AuthService $authService) {
 
     }
+
+    
     function login(Request $request)
     {
         try {
@@ -90,6 +92,7 @@ class AuthController extends Controller
             return $this->throwableError($e);
         }
     }
+
 
     function resetPassword(Request $request)
     {
