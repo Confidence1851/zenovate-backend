@@ -11,6 +11,7 @@ class Payment extends Model
 
     protected $casts = [
         'metadata' => 'array',
+        'method_info' => 'array',
         'paid_at' => 'datetime',
     ];
 
@@ -29,6 +30,11 @@ class Payment extends Model
             "id",
             "product_id"
         );
+    }
+
+    function paymentProducts()
+    {
+        return $this->hasMany(PaymentProduct::class, "payment_id" , "id");
     }
 
     public function scopeSearch($query, $key)

@@ -15,7 +15,10 @@ class Controller extends BaseController
 
     function throwableError(Throwable $e)
     {
-        logger($e->getMessage(), ["payload" => request()->all() , "trace" => $e->getTrace()]);
-        return ApiHelper::problemResponse('An error occurred while processing your request', ApiConstants::SERVER_ERR_CODE);
+        logger($e->getMessage(), ["payload" => request()->all(), "trace" => $e->getTrace()]);
+        return ApiHelper::problemResponse(
+            'An error occurred while processing your request',
+            ApiConstants::SERVER_ERR_CODE
+        );
     }
 }

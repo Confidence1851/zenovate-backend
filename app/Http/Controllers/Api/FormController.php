@@ -5,10 +5,12 @@ namespace App\Http\Controllers\Api;
 use App\Exceptions\GeneralException;
 use App\Helpers\ApiConstants;
 use App\Helpers\ApiHelper;
+use App\Helpers\AppConstants;
 use App\Helpers\StatusConstants;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\ProductResource;
 use App\Models\FormSession;
+use App\Models\FormSessionActivity;
 use App\Models\Product;
 use App\Services\Form\Session\StartService;
 use App\Services\Form\Session\UpdateService;
@@ -50,6 +52,9 @@ class FormController extends Controller
     {
         try {
             $data = (new UpdateService)->handle($request->all());
+            if(!empty($p = $data["products"] ?? null)){
+                $data["products"] = ProductResource::collection($p);
+            }
             return ApiHelper::validResponse(
                 'Session updated successfully',
                 $data
@@ -209,7 +214,6 @@ class FormController extends Controller
                 ApiConstants::BAD_REQ_ERR_CODE
             );
         } catch (Throwable $e) {
-            dd($e);
             return $this->throwableError($e);
         }
     }
@@ -235,6 +239,7 @@ class FormController extends Controller
             if(empty($session)){
                 $session = (new StartService)->handle($request->all());
             }
+
             $meta = $session->metadata ?? [];
             $old_formdata = $form->metadata["raw"];
             // unset($old_formdata["selectedProducts"]);
@@ -243,6 +248,16 @@ class FormController extends Controller
                 "user_id" => $form->user_id,
                 "metadata" => $meta
             ]);
+
+
+            FormSessionActivity::firstOrCreate([
+                "form_session_id" => $session->id,
+                "activity" => AppConstants::ACIVITY_RECREATE,
+            ], [
+                "user_id" => $session->user_id,
+                "message" => "Form session created from #".$form->reference
+            ]);
+
             return ApiHelper::validResponse(
                 'Session rereated successfully',
                 [

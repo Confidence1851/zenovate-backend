@@ -2,11 +2,13 @@
 
 namespace App\Models;
 
+use App\Helpers\Helper;
 use Illuminate\Database\Eloquent\Model;
 
 class PaymentProduct extends Model
 {
     protected $guarded = ['id'];
+    protected $casts = ['price' => 'array'];
 
     function payment()
     {
@@ -16,5 +18,12 @@ class PaymentProduct extends Model
     function product()
     {
         return $this->belongsTo(Product::class, "product_id");
+    }
+
+    function getPrice()
+    {
+        $info = $this->price;
+        return strtoupper($info["currency"] . "" . number_format($info["value"], 2) .
+            " / {$info['frequency']} {$info['unit']}");
     }
 }

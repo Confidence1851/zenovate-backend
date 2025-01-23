@@ -28,7 +28,6 @@ class AirtableService
      */
     public function createRecord(string $table, array $records)
     {
-        // dd(json_encode($records));
         $url = "https://api.airtable.com/v0/{$this->baseId}/{$table}";
         $response = Http::withToken($this->apiKey)
             ->post($url, [

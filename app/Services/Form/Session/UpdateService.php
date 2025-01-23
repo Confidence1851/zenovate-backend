@@ -5,6 +5,7 @@ namespace App\Services\Form\Session;
 use App\Exceptions\GeneralException;
 use App\Helpers\AppConstants;
 use App\Helpers\EncryptionService;
+use App\Helpers\Helper;
 use App\Helpers\StatusConstants;
 use App\Models\FormSession;
 use App\Models\FormSessionActivity;
@@ -56,7 +57,8 @@ class UpdateService
             "step" => "required|string|" . Rule::in(self::STEPS),
             "formData" => "nullable|array",
             "formData.selectedProducts" => "nullable|array",
-            "formData.selectedProducts.*.id" => "required|exists:products,id"
+            "formData.selectedProducts.*.product_id" => "required|exists:products,id",
+            "formData.selectedProducts.*.price_id" => "nullable",
         ]);
 
         if ($validator->fails()) {
@@ -94,7 +96,6 @@ class UpdateService
                     ]);
                     $this->formSession->refresh();
                 }
-
 
                 $formatted_data = $this->mapFields($data);
 
@@ -161,7 +162,7 @@ class UpdateService
     public function handleCheckout(array $data)
     {
         $selected_products = collect($this->formSession->metadata["raw"]["selectedProducts"]);
-        $products = Product::whereIn("id", $selected_products->pluck("id"))->get([
+        $products = Product::whereIn("id", $selected_products->pluck("product_id"))->get([
             "id",
             "name",
             "subtitle",
@@ -169,9 +170,20 @@ class UpdateService
             "price"
         ]);
 
-        $sub_total = $products->sum("price");
-        $shipping_fee = ProcessorService::getShippingFee($this->formSession);
+        foreach ($products as $key => $product) {
+            $price_id = $selected_products->where(
+                "product_id",
+                $product->id
+            )->first()["price_id"];
+            $product->selected_price = json_decode(
+                Helper::decrypt($price_id)
+            ,
+                true
+            )["value"];
+        }
 
+        $sub_total = $products->sum("selected_price.value");
+        $shipping_fee = ProcessorService::getShippingFee($this->formSession);
 
         return array_merge($this->parseGeoData(), [
             "products" => $products,

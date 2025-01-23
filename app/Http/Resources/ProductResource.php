@@ -25,6 +25,7 @@ class ProductResource extends JsonResource
             "benefits" => $this->benefits,
             "price" => $this->getLocationPrice(),
             "quantity" => 1,
+            "selected_price" => $this->selected_price,
         ];
     }
 }

@@ -18,17 +18,19 @@ class Product extends Model
         $info = IpAddressService::info();
         $currency = $info["currency"] ?? "USD";
 
-
         $list = [];
         foreach ($this->price as $value) {
-            $price_id = ["product_id" => $this->id, "value" => $value];
-            $value["id"] = Helper::encrypt(json_encode($price_id));
             $value["value"] = $value["values"][strtolower($currency)];
             $value["currency"] = $currency;
             unset($value["values"]);
+            
+            $price_id = ["product_id" => $this->id, "value" => $value];
+            $value["id"] = Helper::encrypt(json_encode($price_id));
             $list[] = $value;
         }
 
-        return collect($list)->sort("value")->toArray();
+        // Sort by 'value' in ascending order
+        return collect($list)->sortBy("value")->values()->toArray();
     }
+
 }

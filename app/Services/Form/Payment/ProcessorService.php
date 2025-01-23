@@ -40,7 +40,9 @@ class ProcessorService
         foreach ($data["products"] as $product) {
             PaymentProduct::firstOrCreate([
                 "payment_id" => $payment->id,
-                "product_id" => $product->id
+                "product_id" => $product->id,
+            ], [
+                "price" => $product->selected_price
             ]);
         }
 
@@ -85,7 +87,7 @@ class ProcessorService
     {
         $payment = Payment::whereHas("formSession")->findOrFail($data["payment_id"]);
         $service = new StripeService;
-        $service->setPayment($payment)
+        $service->setPayment(value: $payment)
             ->verify($data);
 
         $hash = base64_encode((new EncryptionService)->encrypt([

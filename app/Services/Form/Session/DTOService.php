@@ -3,9 +3,11 @@
 namespace App\Services\Form\Session;
 
 use App\Exceptions\GeneralException;
+use App\Helpers\Helper;
 use App\Helpers\StatusConstants;
 use App\Models\FormSession;
 use App\Models\Payment;
+use App\Models\PaymentProduct;
 use Carbon\Carbon;
 use Exception;
 
@@ -57,9 +59,10 @@ class DTOService
         return $v;
     }
 
-    function dob2(){
+    function dob2()
+    {
         $v = $this->dob();
-        if(empty($v)){
+        if (empty($v)) {
             return;
         }
         return Carbon::parse($v)->format("m/d/Y");
@@ -119,10 +122,51 @@ class DTOService
         return now()->format("m/d/Y");
     }
 
-    // Selected Products
     function selectedProducts()
     {
         return $this->payment?->products ?? [];
+    }
+
+    function paymentProducts()
+    {
+        $selected_products = collect($this->metadata['raw']['selectedProducts'] ?? [])
+            ->whereNotNull("price_id");
+
+
+        $payment = $this->payment;
+        if(!empty($payment)){
+            return $payment->paymentProducts;
+        }
+
+        $currency = null;
+        $list = [];
+        $selected_products->map(
+            function ($product_price) use (&$currency , &$list) {
+                $info = null;
+                if (!empty($product_price["price_id"] ?? null)) {
+                    try {
+                        $info = json_decode(
+                            Helper::decrypt($product_price["price_id"]),
+                            true
+                        )["value"] ?? null;
+
+                    } catch (\Throwable $th) {
+                        throw $th;
+                    }
+                }
+
+                $item = new PaymentProduct([
+                    "payment_id" => null,
+                    "product_id" =>  $product_price["product_id"],
+                    "price" => $info
+                ]);
+
+                $list[] = $item;
+                return $item;
+            }
+        );
+
+        return collect($list);
     }
 
     function validate()
@@ -143,7 +187,7 @@ class DTOService
         ];
 
         foreach ($required_fields as $key => $value) {
-            if(empty($value)){
+            if (empty($value)) {
                 logger("Empty value", [$key, $value]);
                 throw new GeneralException("Fields are yet to be complete.");
             }

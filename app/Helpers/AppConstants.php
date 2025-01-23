@@ -13,6 +13,7 @@ class AppConstants
     const ACIVITY_REVIEWED = "Reviewed";
     const ACIVITY_SIGNED = "Signed";
     const ACIVITY_CONFIRMED = "Confirmed";
+    const ACIVITY_RECREATE = "Recreate";
     const CAD = "CAD";
 
     const ROLES = [
