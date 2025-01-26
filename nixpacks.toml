@@ -1,0 +1,21 @@
+[phases.setup]
+nixPkgs = ['php82', 'php81Packages.composer', 'bun',]
+
+[phases.install]
+cmds = [
+    'composer install --no-dev --optimize-autoloader --ignore-platform-reqs',
+    'bun install',
+    'bun upgrade',
+]
+
+[phases.build]
+cmds = [
+    'php artisan storage:link',
+    'php artisan config:cache',
+    'php artisan route:cache',
+    'php artisan view:cache',
+    'bun run build'
+]
+
+[start]
+cmd = 'php artisan serve --host=0.0.0.0 --port=${PORT:-8000}'
