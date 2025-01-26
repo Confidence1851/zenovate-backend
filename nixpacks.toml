@@ -1,5 +1,6 @@
 [phases.setup]
-nixPkgs = ['php82', 'php81Packages.composer', 'bun',]
+nixPkgs = ['php82', 'php81Packages.composer', 'bun', 'unzip']
+
 
 [phases.install]
 cmds = [
