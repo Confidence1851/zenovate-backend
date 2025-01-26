@@ -98,6 +98,10 @@ return [
             'transport' => 'preview',
         ],
 
+        'sendgrid' => [
+            'transport' => 'sendgrid',
+        ],
+
     ],
 
     /*

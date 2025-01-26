@@ -34,12 +34,12 @@ class TestCommand extends Command
      */
     public function handle()
     {
-        $v = (new ProcessorService())->callback([
-            "status" => StatusConstants::SUCCESSFUL,
-            "payment_id" => 2
-        ]);
+        // $v = (new ProcessorService())->callback([
+        //     "status" => StatusConstants::SUCCESSFUL,
+        //     "payment_id" => 2
+        // ]);
 
-        dd($v);
+        // dd($v);
 
         // dd(IpAddressService::info("80.6.134.248" , true));
         // $hash = base64_encode((new EncryptionService)->encrypt([
@@ -48,8 +48,8 @@ class TestCommand extends Command
         // ]));
         // $redirect_url = env("FRONTEND_APP_URL") . "/redirect/$hash";
         // dd($redirect_url);
-        // $t = "RU4rRVlyU0ZJM1doRXN2V3JlTXlISEo2SWxvZmpRc1dmZDVRemJhek1xeDdpQUMyR3NySlY0V2NVNFJNMWVxUWRSc3FvZHp5cFY4SEtrNTMvZDhGM2poT0FSdkt4OW5ESWdTQnIyWGltTGs9";
-        // dd((new EncryptionService)->decrypt(base64_decode($t)));
+        $t = "RU4rRVlyU0ZJM1doRXN2V3JlTXlISTh6L2RCOVNsMFhwWHFGa0ZRYTRVWTc2QzF3SUI2K3pUN1ByWm9FZW9QVjltK2tQNUNvbjhZbTZmYnFjbFFlTlU2dklkdVdxNjNlaUplOTl5NUsvWnc9";
+        dd((new EncryptionService)->decrypt(base64_decode($t)));
         // $session = FormSession::find("9dac7c08-d22d-418f-a29d-79ab752cc717");
 
         // (new SignService($session))->generatePdf("consent_pdf_path", true);

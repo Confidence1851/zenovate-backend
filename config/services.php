@@ -35,11 +35,15 @@ return [
         ],
     ],
 
+    'sendgrid' => [
+        'api_key' => env('SENDGRID_API_KEY'),
+    ],
+
     'airtable' => [
         'api_key' => env('AIRTABLE_API_KEY'),
         'base_id' => env('AIRTABLE_BASE_ID'),
     ],
 
-    
+
 
 ];
