@@ -23,6 +23,7 @@ class PaymentProduct extends Model
     function getPrice()
     {
         $info = $this->price;
+        if(empty($info)) return "N/A";
         return strtoupper($info["currency"] . "" . number_format($info["value"], 2) .
             " / {$info['frequency']} {$info['unit']}");
     }
