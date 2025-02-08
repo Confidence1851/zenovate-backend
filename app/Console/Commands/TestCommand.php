@@ -48,7 +48,9 @@ class TestCommand extends Command
         // ]));
         // $redirect_url = env("FRONTEND_APP_URL") . "/redirect/$hash";
         // dd($redirect_url);
-        $t = "RU4rRVlyU0ZJM1doRXN2V3JlTXlISTh6L2RCOVNsMFhwWHFGa0ZRYTRVWTc2QzF3SUI2K3pUN1ByWm9FZW9QVjltK2tQNUNvbjhZbTZmYnFjbFFlTlU2dklkdVdxNjNlaUplOTl5NUsvWnc9";
+
+        //https://application.zenovate.health/redirect/RU4rRVlyU0ZJM1doRXN2V3JlTXlIQVcydm9CVmJUNUhRUTRhUm1iUW0wS3lheTBoYmlyTElBQm5ac3BubXMzNEI5cW16NHdwcEEvTWZsTjR5cDIrKzN1bVpWck5KTWFTV0F5UGtOdEl2QUk9
+        $t = "RU4rRVlyU0ZJM1doRXN2V3JlTXlIQVcydm9CVmJUNUhRUTRhUm1iUW0wS3lheTBoYmlyTElBQm5ac3BubXMzNEI5cW16NHdwcEEvTWZsTjR5cDIrKzN1bVpWck5KTWFTV0F5UGtOdEl2QUk9";
         dd((new EncryptionService)->decrypt(base64_decode($t)));
         // $session = FormSession::find("9dac7c08-d22d-418f-a29d-79ab752cc717");
 

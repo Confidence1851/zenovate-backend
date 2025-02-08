@@ -94,7 +94,7 @@ class ProcessorService
             "key" => "payment",
             "value" => $payment->form_session_id
         ]));
-        $redirect_url = env("FRONTEND_APP_URL") . "/redirect/$hash";
+        $redirect_url = env("FRONTEND_APP_URL") . "/r/$hash";
         return $redirect_url;
     }
 }
