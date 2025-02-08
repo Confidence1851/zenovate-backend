@@ -136,21 +136,23 @@ class UpdateService
     {
         $info = IpAddressService::info();
 
-        if (empty($info)) {
-            $country = trim($this->formSession->metadata["raw"]["country"] ?? '');
-            if (strtolower($country) == "Canada") {
-                return [
-                    "currency" => "CAD",
-                    "country_code" => "CA",
-                    "country" => "Canada"
-                ];
-            }
+        $country = trim($this->formSession->metadata["raw"]["country"] ?? '');
+        if (!empty($info)) {
+            $country = $info["country"];
+        }
+        if (strtolower($country) == "Canada") {
             return [
-                "currency" => "USD",
-                "country_code" => "US",
-                "country" => "United States"
+                "currency" => "CAD",
+                "country_code" => "CA",
+                "country" => "Canada"
             ];
         }
+        return [
+            "currency" => "USD",
+            "country_code" => "US",
+            "country" => "United States"
+        ];
+
         return [
             "currency" => $info["currency"],
             "country_code" => $info["countryCode"],
