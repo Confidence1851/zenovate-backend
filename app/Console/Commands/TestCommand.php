@@ -6,12 +6,15 @@ use App\Helpers\EncryptionService;
 use App\Helpers\Helper;
 use App\Helpers\StatusConstants;
 use App\Models\FormSession;
+use App\Models\User;
+use App\Notifications\Form\Session\Admin\ConfirmedNotification;
 use App\Services\Form\Payment\ProcessorService;
 use App\Services\Form\Payment\StripeService;
 use App\Services\Form\Session\AirtableService;
 use App\Services\Form\Session\SignService;
 use App\Services\General\IpAddressService;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Notification;
 
 class TestCommand extends Command
 {
@@ -34,6 +37,8 @@ class TestCommand extends Command
      */
     public function handle()
     {
+        Notification::send(User::first(), new ConfirmedNotification(FormSession::first()));
+
         // $v = (new ProcessorService())->callback([
         //     "status" => StatusConstants::SUCCESSFUL,
         //     "payment_id" => 2
