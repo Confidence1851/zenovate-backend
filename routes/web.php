@@ -11,6 +11,10 @@ Route::get('/', function () {
     return redirect()->route("login");
 });
 
+Route::get('/website', function () {
+    return redirect()->away(env("FRONTEND_APP_URL"));
+})->name('website');
+
 Route::as("dashboard.")->prefix("dashboard")->middleware(["auth", "admin"])->group(function () {
     Route::get('/', [HomeController::class, 'index'])->name('index');
     Route::resource('form-sessions', FormSessionController::class);

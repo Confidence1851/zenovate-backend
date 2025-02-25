@@ -61,4 +61,8 @@ class User extends Authenticatable
     function getFullNameAttribute()  {
         return $this->first_name . " " . $this->last_name;
     }
+
+    function isAdmin() : bool {
+        return in_array(strtolower($this->role), ["admin", "sudo"]);
+    }
 }
