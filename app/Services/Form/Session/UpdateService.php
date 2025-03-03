@@ -72,7 +72,7 @@ class UpdateService
     {
         return DB::transaction(function () use ($data) {
             $this->validate($data);
-            logger("Session data", $data);
+            // logger("Session data", $data);
             $form = FormSession::whereIn("status", [
                 StatusConstants::PENDING,
                 StatusConstants::PROCESSING,
@@ -229,7 +229,6 @@ class UpdateService
             ]));
             $redirect_url = env("FRONTEND_APP_SITE_URL") . "/auth/authenticate/$hash";
 
-            logger("COmplete", [$redirect_url]);
             return [
                 "redirect_url" => $redirect_url
             ];
@@ -239,7 +238,6 @@ class UpdateService
 
     public function handleInfo(array $data)
     {
-        logger("Handling data", $data);
         $email = $data["email"];
         if (empty($email)) {
             return [];

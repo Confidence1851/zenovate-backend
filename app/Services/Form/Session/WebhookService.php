@@ -55,7 +55,8 @@ class WebhookService
                     "message" => "Order signing completed."
                 ]);
 
-                (new AirtableService)->pushData($session->refresh());
+                // Disable pushing data to Skycare
+                // (new AirtableService)->pushData($session->refresh());
 
                 $dto = new DTOService($session);
                 Notification::route('mail', [
@@ -71,10 +72,6 @@ class WebhookService
 
                 // }
             }
-
         });
-
     }
-
-
 }
