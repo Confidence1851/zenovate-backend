@@ -22,7 +22,7 @@ class AppServiceProvider extends ServiceProvider
         // View composer
         view()->composer("*", function ($view) {
             $view->with([
-                "admin_assets" => secure_asset("admin"),
+                "admin_assets" => app()->isProduction() ? secure_asset("admin") : asset("admin"),
             ]);
         });
 

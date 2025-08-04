@@ -84,12 +84,11 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    @forelse ($payment->products as $product)
+                                    @forelse ($payment->paymentProducts as $paymentProduct)
                                         <tr>
-                                            <td>{{ $product->name }}</td>
+                                            <td>{{ $paymentProduct->product->name }}</td>
                                             <td>1</td>
-                                            <td>{{ strtoupper($payment->currency) }}
-                                                {{ number_format($product->price, 2) }}</td>
+                                            <td>{{ $paymentProduct->getPrice() }}</td>
                                         </tr>
                                     @empty
                                         <tr>

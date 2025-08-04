@@ -12,6 +12,7 @@ use App\Models\FormSessionActivity;
 use App\Models\Product;
 use App\Models\User;
 use App\Notifications\Form\Session\Admin\AwaitingReviewNotification;
+use App\Notifications\Form\Session\Admin\NewRequestNotification;
 use App\Notifications\Form\Session\Customer\ReceivedNotification;
 use App\Services\Auth\CustomerService;
 use App\Services\Auth\UserService;
@@ -215,6 +216,10 @@ class UpdateService
             Notification::route('mail', [
                 $dto->email() => $dto->fullName(),
             ])->notify(new ReceivedNotification($this->formSession));
+
+            Notification::route('mail', [
+                "info@zenovate.health",
+            ])->notify(new NewRequestNotification($this->formSession));
 
             $admins = User::whereIn("role", AppConstants::ADMIN_ROLES)
                 ->where("team", AppConstants::TEAM_ZENOVATE)

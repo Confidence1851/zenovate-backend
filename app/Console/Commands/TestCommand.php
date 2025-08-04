@@ -8,6 +8,7 @@ use App\Helpers\StatusConstants;
 use App\Models\FormSession;
 use App\Models\User;
 use App\Notifications\Form\Session\Admin\ConfirmedNotification;
+use App\Notifications\Form\Session\Admin\NewRequestNotification;
 use App\Services\Form\Payment\ProcessorService;
 use App\Services\Form\Payment\StripeService;
 use App\Services\Form\Session\AirtableService;
@@ -37,7 +38,11 @@ class TestCommand extends Command
      */
     public function handle()
     {
-        Notification::send(User::first(), new ConfirmedNotification(FormSession::first()));
+        Notification::route('mail', [
+            "info@test.com",
+        ])->notify(new NewRequestNotification(FormSession::find('9e0ac72a-1119-4d12-8b28-340a135f94db')));
+        dd("Stop");
+        // Notification::send(User::first(), new ConfirmedNotification(FormSession::first()));
 
         // $v = (new ProcessorService())->callback([
         //     "status" => StatusConstants::SUCCESSFUL,
