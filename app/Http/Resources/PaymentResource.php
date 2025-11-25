@@ -25,6 +25,8 @@ class PaymentResource extends JsonResource
             "metadata" => $this->metadata,
             "method" => $this->method,
             "method_info" => $this->method_info,
+            "discount_code" => $this->discount_code,
+            "discount_amount" => $this->discount_amount ? $this->currency . "" . number_format($this->discount_amount, 2) : null,
         ];
     }
 }

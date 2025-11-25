@@ -52,7 +52,7 @@ class FormController extends Controller
     {
         try {
             $data = (new UpdateService)->handle($request->all());
-            if(!empty($p = $data["products"] ?? null)){
+            if (!empty($p = $data["products"] ?? null)) {
                 $data["products"] = ProductResource::collection($p);
             }
             return ApiHelper::validResponse(
@@ -108,7 +108,7 @@ class FormController extends Controller
             return ApiHelper::validResponse(
                 'Products retrieved successfully',
                 ProductResource::collection(
-                    Product::get()
+                    Product::where('status', StatusConstants::ACTIVE)->get()
                 )
             );
         } catch (GeneralException $e) {
@@ -127,7 +127,8 @@ class FormController extends Controller
             return ApiHelper::validResponse(
                 'Product retrieved successfully',
                 ProductResource::make(
-                    Product::where("slug", $id)
+                    Product::where('status', StatusConstants::ACTIVE)
+                        ->where("slug", $id)
                         ->firstOrFail()
                 )
             );
@@ -231,11 +232,11 @@ class FormController extends Controller
                 StatusConstants::PENDING,
                 StatusConstants::PROCESSING,
             ])
-            ->where("user_id", $request->user()->id)
-            ->latest()
-            ->first();
+                ->where("user_id", $request->user()->id)
+                ->latest()
+                ->first();
 
-            if(empty($session)){
+            if (empty($session)) {
                 $session = (new StartService)->handle($request->all());
             }
 
@@ -254,7 +255,7 @@ class FormController extends Controller
                 "activity" => AppConstants::ACIVITY_RECREATE,
             ], [
                 "user_id" => $session->user_id,
-                "message" => "Form session created from #".$form->reference
+                "message" => "Form session created from #" . $form->reference
             ]);
 
             return ApiHelper::validResponse(

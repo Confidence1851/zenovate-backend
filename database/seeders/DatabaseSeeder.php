@@ -16,6 +16,9 @@ class DatabaseSeeder extends Seeder
         // User::factory(10)->create();
 
         $this->call(UserTableSeeder::class);
-        $this->call(ProductTableSeeder::class);
+        
+        // Use ProductionDataSeeder for comprehensive data seeding
+        // This ensures all seeders run in the correct order
+        $this->call(ProductionDataSeeder::class);
     }
 }

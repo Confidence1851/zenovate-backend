@@ -57,7 +57,7 @@ class UpdateHardcodedProductInfoSeeder extends Seeder
 
         foreach ($productsData as $productName => $data) {
             $product = Product::where('name', $productName)->first();
-            
+
             if ($product) {
                 // Only update fields that are provided and not empty
                 if (!empty($data['subtitle'])) {
@@ -72,7 +72,7 @@ class UpdateHardcodedProductInfoSeeder extends Seeder
                 if (!empty($data['key_ingredients'])) {
                     $product->key_ingredients = $data['key_ingredients'];
                 }
-                
+
                 $product->save();
                 $updatedCount++;
                 $this->command->info("Updated: {$productName}");
@@ -89,4 +89,3 @@ class UpdateHardcodedProductInfoSeeder extends Seeder
         }
     }
 }
-

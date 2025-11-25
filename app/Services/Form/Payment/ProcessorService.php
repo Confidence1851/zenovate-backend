@@ -46,6 +46,9 @@ class ProcessorService
             ]);
         }
 
+        // Ensure payment is saved and refreshed before passing to StripeService
+        $payment->refresh();
+        
         $intent = $service->setCurrency($data["currency"])
             ->setCountry($data["country_code"])
             ->setDescription("Zenovate")

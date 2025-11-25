@@ -16,7 +16,7 @@ class PeptideProductSeeder extends Seeder
     public function run(): void
     {
         $csvPath = storage_path('app/tmp/peptides.csv');
-        
+
         if (!file_exists($csvPath)) {
             $this->command->error("CSV file not found at: {$csvPath}");
             return;
@@ -49,7 +49,7 @@ class PeptideProductSeeder extends Seeder
         // Read data rows
         while (($row = fgetcsv($file)) !== false) {
             $rowCount++;
-            
+
             // Skip empty rows or disclaimer rows
             if (empty($row[0]) || trim($row[0]) === 'Disclaimer' || trim($row[0]) === '') {
                 continue;
@@ -70,7 +70,7 @@ class PeptideProductSeeder extends Seeder
             $oneMonthDose = $this->getValue($row, $indices, '1-Month Dose');
             $threeMonthsDose = $this->getValue($row, $indices, '3-Months Dose');
             $reference = $this->getValue($row, $indices, 'Reference');
-            
+
             // Pricing data
             $pricingIndividualUsd = $this->cleanPrice($this->getValue($row, $indices, 'Pricing for Individual Clients (USD)'));
             $pricingIndividualCad = $this->cleanPrice($this->getValue($row, $indices, 'Pricing for Individual Clients (CAD)'));
@@ -81,31 +81,31 @@ class PeptideProductSeeder extends Seeder
 
             // Build description
             $descriptionParts = [];
-            
+
             if ($peptide) {
                 $descriptionParts[] = "Peptide: " . $this->cleanText($peptide);
             }
-            
+
             if ($benefits) {
                 $descriptionParts[] = "Benefits: " . $this->cleanText($benefits);
             }
-            
+
             if ($penStrength) {
                 $descriptionParts[] = "Pen Strength: " . $this->cleanText($penStrength);
             }
-            
+
             if ($oneMonthDose) {
                 $descriptionParts[] = "1-Month Dose: " . $this->cleanText($oneMonthDose);
             }
-            
+
             if ($threeMonthsDose) {
                 $descriptionParts[] = "3-Months Dose: " . $this->cleanText($threeMonthsDose);
             }
-            
+
             if ($contraindications) {
                 $descriptionParts[] = "Contraindications: " . $this->cleanText($contraindications);
             }
-            
+
             if ($reference) {
                 $descriptionParts[] = "Reference: " . $this->cleanText($reference);
             }
@@ -117,8 +117,8 @@ class PeptideProductSeeder extends Seeder
 
             // Build price array
             $price = [];
-            
-            // Add individual client pricing if available
+
+            // Add individual client pricing if available (1 month = 4 weeks)
             if ($pricingIndividualUsd || $pricingIndividualCad) {
                 $values = [];
                 if ($pricingIndividualUsd) {
@@ -127,17 +127,17 @@ class PeptideProductSeeder extends Seeder
                 if ($pricingIndividualCad) {
                     $values['cad'] = (float)$pricingIndividualCad;
                 }
-                
+
                 if (!empty($values)) {
                     $price[] = [
-                        "frequency" => 12,
+                        "frequency" => 4,  // 1 month = 4 weeks
                         "unit" => "week",
                         "values" => $values
                     ];
                 }
             }
-            
-            // Add clinic pricing if available (as a different tier)
+
+            // Add clinic pricing if available (3 months = 12 weeks)
             if ($pricingClinicUsd || $pricingClinicCad) {
                 $values = [];
                 if ($pricingClinicUsd) {
@@ -146,16 +146,16 @@ class PeptideProductSeeder extends Seeder
                 if ($pricingClinicCad) {
                     $values['cad'] = (float)$pricingClinicCad;
                 }
-                
+
                 if (!empty($values)) {
                     $price[] = [
-                        "frequency" => 36,
+                        "frequency" => 12,  // 3 months = 12 weeks
                         "unit" => "week",
                         "values" => $values
                     ];
                 }
             }
-            
+
             // Fallback to base pricing if no individual/clinic pricing
             if (empty($price) && ($usdPricing || $cadPricing)) {
                 $values = [];
@@ -165,7 +165,7 @@ class PeptideProductSeeder extends Seeder
                 if ($cadPricing) {
                     $values['cad'] = (float)$cadPricing;
                 }
-                
+
                 if (!empty($values)) {
                     $price[] = [
                         "frequency" => 12,
@@ -190,7 +190,7 @@ class PeptideProductSeeder extends Seeder
 
             // Create or update product
             $product = Product::where('name', $name)->first();
-            
+
             if ($product) {
                 $product->update($productData);
                 $product->slug = ProductService::generateSlug($product);
@@ -225,7 +225,7 @@ class PeptideProductSeeder extends Seeder
 
         $index = $indices[$columnName];
         $value = isset($row[$index]) ? trim($row[$index]) : null;
-        
+
         return $value !== '' ? $value : null;
     }
 
@@ -249,7 +249,7 @@ class PeptideProductSeeder extends Seeder
 
         // Remove $, commas, and other non-numeric characters except decimal point
         $cleaned = preg_replace('/[^0-9.]/', '', $price);
-        
+
         return $cleaned !== '' ? $cleaned : null;
     }
 
@@ -265,8 +265,7 @@ class PeptideProductSeeder extends Seeder
         // Normalize line breaks and remove extra whitespace
         $cleaned = preg_replace('/\s+/', ' ', $text);
         $cleaned = trim($cleaned);
-        
+
         return $cleaned;
     }
 }
-

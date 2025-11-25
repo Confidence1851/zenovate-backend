@@ -136,11 +136,14 @@ class StripeService
         ];
 
         $line_items = [];
+        // Show products at their original prices
         foreach ($this->products as $product) {
+            $originalAmount = $product->selected_price["value"];
+            
             $line_items[] = [
                 'price_data' => [
                     'currency' => $this->currency,
-                    'unit_amount' => $product->selected_price["value"] * 100,
+                    'unit_amount' => (int) round($originalAmount * 100),
                     'product_data' => [
                         'name' => $product->name,
                         // 'images' => [$image],
@@ -149,7 +152,33 @@ class StripeService
                 'quantity' => 1,
             ];
         }
+        
         $checkout_data["line_items"] = $line_items;
+        
+        // Apply discount using Stripe's native coupon system
+        $discountAmount = isset($this->payment->discount_amount) && $this->payment->discount_amount > 0 
+            ? (float) $this->payment->discount_amount 
+            : 0;
+        
+        $discountCode = $this->payment->discount_code ?? null;
+        
+        if ($discountAmount > 0 && $discountCode) {
+            // Get the discount code model to create Stripe coupon
+            $discountModel = \App\Models\DiscountCode::where('code', $discountCode)->first();
+            
+            if ($discountModel) {
+                try {
+                    $couponId = $this->getOrCreateStripeCoupon($discountModel, $discountAmount, strtolower($this->currency));
+                    if ($couponId) {
+                        $checkout_data["discounts"] = [["coupon" => $couponId]];
+                    }
+                } catch (\Exception $e) {
+                    // Log error but don't fail checkout if coupon creation fails
+                    \Log::error("Failed to create Stripe coupon for discount: " . $e->getMessage());
+                }
+            }
+        }
+        
         $checkout_data = array_merge($shipping_info, $checkout_data);
         return $this->stripeClient->checkout->sessions->create($checkout_data);
     }
@@ -222,5 +251,47 @@ class StripeService
             "status" => StatusConstants::REFUNDED,
         ]);
 
+    }
+
+    /**
+     * Get or create a Stripe coupon for the discount code
+     */
+    private function getOrCreateStripeCoupon(\App\Models\DiscountCode $discount, $discountAmount, $currency = 'usd')
+    {
+        // Create a unique coupon ID based on discount code, type, value, and currency
+        // For fixed discounts, include the amount to ensure uniqueness
+        $couponIdSuffix = $discount->type == 'fixed'
+            ? $discount->code . '_' . $discount->type . '_' . $discountAmount . '_' . $currency
+            : $discount->code . '_' . $discount->type . '_' . $discount->value . '_' . $currency;
+
+        // Stripe coupon IDs must be lowercase and alphanumeric with underscores/dashes, max 40 chars
+        $couponId = strtolower(preg_replace('/[^a-z0-9_-]/i', '_', $couponIdSuffix));
+        // Truncate if too long
+        if (strlen($couponId) > 40) {
+            $couponId = substr($couponId, 0, 40);
+        }
+
+        try {
+            // Try to retrieve existing coupon
+            $coupon = $this->stripeClient->coupons->retrieve($couponId);
+            return $coupon->id;
+        } catch (\Stripe\Exception\InvalidRequestException $e) {
+            // Coupon doesn't exist, create it
+            $couponData = [
+                'id' => $couponId,
+                'name' => $discount->code,
+            ];
+
+            if ($discount->type == 'percentage') {
+                $couponData['percent_off'] = $discount->value;
+            } else if ($discount->type == 'fixed') {
+                // For fixed discounts, use amount_off with the actual discount amount in cents
+                $couponData['amount_off'] = round($discountAmount * 100); // Convert to cents
+                $couponData['currency'] = $currency;
+            }
+
+            $coupon = $this->stripeClient->coupons->create($couponData);
+            return $coupon->id;
+        }
     }
 }

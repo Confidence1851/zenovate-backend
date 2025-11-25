@@ -17,6 +17,7 @@ use App\Notifications\Form\Session\Customer\ReceivedNotification;
 use App\Services\Auth\CustomerService;
 use App\Services\Auth\UserService;
 use App\Services\Form\Payment\ProcessorService;
+use App\Services\General\DiscountCodeService;
 use App\Services\General\IpAddressService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
@@ -60,6 +61,7 @@ class UpdateService
             "formData.selectedProducts" => "nullable|array",
             "formData.selectedProducts.*.product_id" => "required|exists:products,id",
             "formData.selectedProducts.*.price_id" => "nullable",
+            "discount_code" => "nullable|string",
         ]);
 
         if ($validator->fails()) {
@@ -129,6 +131,7 @@ class UpdateService
             "dob" => $data["formData"]["dateOfBirth"] ?? null,
             "preferred_contact_method" => $data["formData"]["preferredContact"] ?? null,
             "selected_products" => $data["formData"]["selectedProducts"] ?? null,
+            "discount_code" => $data["discount_code"] ?? $data["formData"]["discount_code"] ?? null,
         ];
     }
 
@@ -188,12 +191,30 @@ class UpdateService
         $sub_total = $products->sum("selected_price.value");
         $shipping_fee = ProcessorService::getShippingFee($this->formSession);
 
-        return array_merge($this->parseGeoData(), [
+        $checkoutData = array_merge($this->parseGeoData(), [
             "products" => $products,
             "shipping_fee" => floatval(number_format($shipping_fee, 2)),
             "sub_total" => floatval(number_format($sub_total, 2)),
             "total" => floatval(number_format($sub_total + $shipping_fee, 2))
         ]);
+
+        // Apply discount code if provided
+        if (!empty($data['discount_code'] ?? null)) {
+            try {
+                $discountService = new DiscountCodeService();
+                $checkoutData = $discountService->applyDiscount($checkoutData, $data['discount_code']);
+            } catch (\Exception $e) {
+                // Log the error for debugging
+                \Log::error('Discount code application failed: ' . $e->getMessage(), [
+                    'code' => $data['discount_code'] ?? null,
+                    'trace' => $e->getTraceAsString()
+                ]);
+                // If discount code is invalid, continue without discount
+                // Don't throw exception to allow checkout to proceed
+            }
+        }
+
+        return $checkoutData;
     }
 
     public function handleComplete(array $data)

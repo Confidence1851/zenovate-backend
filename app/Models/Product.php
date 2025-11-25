@@ -13,6 +13,22 @@ class Product extends Model
     protected $guarded = ['id'];
     protected $casts = ['price' => 'array'];
 
+    /**
+     * Get all images for this product
+     */
+    public function images()
+    {
+        return $this->hasMany(ProductImage::class)->ordered();
+    }
+
+    /**
+     * Get primary image
+     */
+    public function primaryImage()
+    {
+        return $this->hasOne(ProductImage::class)->where('is_primary', true);
+    }
+
     function getLocationPrice()
     {
         $info = IpAddressService::info();
@@ -36,18 +52,41 @@ class Product extends Model
     /**
      * Get image URL(s) for the product
      * Returns array of URLs if multiple images, or single URL string
-     * Returns placeholder image if no image_path is set
+     * Returns placeholder image if no images found
+     * Backward compatible: checks product_images table first, then falls back to image_path column
      */
     function getImageUrls()
     {
-        // Handle multiple images (comma-separated)
-        $imagePaths = [];
-        if (!empty($this->image_path)) {
-            $imagePaths = explode(',', $this->image_path);
+        $urls = [];
+
+        // First, try to get images from product_images table (new way)
+        $images = $this->images;
+        if ($images->isNotEmpty()) {
+            foreach ($images as $image) {
+                $imageUrl = $image->getImageUrl();
+                if ($imageUrl) {
+                    $urls[] = $imageUrl;
+                }
+            }
         }
-        
-        // If no images, use placeholder
-        if (empty($imagePaths) || (count($imagePaths) === 1 && empty(trim($imagePaths[0])))) {
+
+        // Fallback to image_path column if no images in table (backward compatibility)
+        if (empty($urls) && !empty($this->image_path)) {
+            $imagePaths = explode(',', $this->image_path);
+            foreach ($imagePaths as $path) {
+                $path = trim($path);
+                if (!empty($path)) {
+                    $encrypted = Helper::encrypt_decrypt("encrypt", $path);
+                    if ($encrypted) {
+                        $baseUrl = env('APP_URL', 'http://localhost');
+                        $urls[] = rtrim($baseUrl, '/') . '/api/get-file/' . $encrypted;
+                    }
+                }
+            }
+        }
+
+        // If still no images, use placeholder
+        if (empty($urls)) {
             $placeholderPath = 'products/placeholder.png';
             $encrypted = Helper::encrypt_decrypt("encrypt", $placeholderPath);
             if ($encrypted) {
@@ -57,20 +96,8 @@ class Product extends Model
             return null;
         }
 
-        $urls = [];
-        foreach ($imagePaths as $path) {
-            $path = trim($path);
-            if (!empty($path)) {
-                $encrypted = Helper::encrypt_decrypt("encrypt", $path);
-                if ($encrypted) {
-                    $baseUrl = env('APP_URL', 'http://localhost');
-                    $urls[] = rtrim($baseUrl, '/') . '/api/get-file/' . $encrypted;
-                }
-            }
-        }
-
         // Return single URL if only one image, otherwise return array
-        return count($urls) === 1 ? $urls[0] : (count($urls) > 0 ? $urls : null);
+        return count($urls) === 1 ? $urls[0] : $urls;
     }
 
 }
