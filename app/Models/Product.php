@@ -29,14 +29,41 @@ class Product extends Model
         return $this->hasOne(ProductImage::class)->where('is_primary', true);
     }
 
+    /**
+     * Get product categories
+     */
+    public function productCategories()
+    {
+        return $this->hasMany(ProductCategory::class)->ordered();
+    }
+
     function getLocationPrice()
     {
         $info = IpAddressService::info();
-        $currency = $info["currency"] ?? "USD";
+        $currency = $info["currency"] ?? "CAD";
 
         $list = [];
         foreach ($this->price as $value) {
-            $value["value"] = $value["values"][strtolower($currency)];
+            $currencyKey = strtolower($currency);
+            
+            // Check if the requested currency exists, otherwise fall back to CAD or first available
+            if (!isset($value["values"][$currencyKey])) {
+                // Try CAD first (default)
+                if (isset($value["values"]["cad"])) {
+                    $currencyKey = "cad";
+                    $currency = "CAD";
+                } elseif (isset($value["values"]["usd"])) {
+                    // Fall back to USD if CAD not available
+                    $currencyKey = "usd";
+                    $currency = "USD";
+                } else {
+                    // Use first available currency
+                    $currencyKey = array_key_first($value["values"]);
+                    $currency = strtoupper($currencyKey);
+                }
+            }
+            
+            $value["value"] = $value["values"][$currencyKey];
             $value["currency"] = $currency;
             unset($value["values"]);
             
@@ -98,6 +125,46 @@ class Product extends Model
 
         // Return single URL if only one image, otherwise return array
         return count($urls) === 1 ? $urls[0] : $urls;
+    }
+
+    /**
+     * Check if product uses direct checkout
+     */
+    public function isDirectCheckout(): bool
+    {
+        return $this->checkout_type === 'direct';
+    }
+
+    /**
+     * Check if product requires patient/clinic selection
+     */
+    public function requiresPatientClinicSelection(): bool
+    {
+        return (bool) $this->requires_patient_clinic_selection;
+    }
+
+    /**
+     * Get shipping fee (product-specific or global)
+     */
+    public function getShippingFee(): float
+    {
+        if ($this->shipping_fee !== null) {
+            return (float) $this->shipping_fee;
+        }
+        
+        return (float) config('checkout.shipping_fee', env('CHECKOUT_SHIPPING_FEE', 60));
+    }
+
+    /**
+     * Get tax rate (product-specific or global)
+     */
+    public function getTaxRate(): float
+    {
+        if ($this->tax_rate !== null) {
+            return (float) $this->tax_rate;
+        }
+        
+        return (float) config('checkout.tax_rate', env('CHECKOUT_TAX_RATE', 0));
     }
 
 }

@@ -15,6 +15,7 @@ class DiscountCode extends Model
         'value' => 'decimal:2',
         'start_date' => 'datetime',
         'end_date' => 'datetime',
+        'expiry_date' => 'datetime',
         'usage_limit' => 'integer',
         'usage_count' => 'integer',
     ];
@@ -35,6 +36,10 @@ class DiscountCode extends Model
             return false;
         }
         if ($this->end_date && $now->gt($this->end_date)) {
+            return false;
+        }
+        // Check expiry_date if provided (additional expiry check)
+        if ($this->expiry_date && $now->gt($this->expiry_date)) {
             return false;
         }
 

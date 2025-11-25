@@ -28,6 +28,11 @@ class ProductResource extends JsonResource
             "selected_price" => $this->selected_price,
             "image_path" => $this->image_path,
             "image_url" => $this->getImageUrls(),
+            "checkout_type" => $this->checkout_type ?? 'form',
+            "requires_patient_clinic_selection" => (bool) ($this->requires_patient_clinic_selection ?? false),
+            "shipping_fee" => $this->shipping_fee,
+            "tax_rate" => $this->tax_rate,
+            "product_categories" => ProductCategoryResource::collection($this->whenLoaded('productCategories')),
         ];
     }
 }

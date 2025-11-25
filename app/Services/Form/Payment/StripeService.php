@@ -8,13 +8,15 @@ use App\Models\Payment;
 use App\Models\PaymentProduct;
 use App\Services\Form\Session\UpdateService;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
 use Stripe\PaymentIntent;
 
 class StripeService
 {
     private $stripeClient;
 
-    public $amount, $currency = "USD", $source, $description, $receipt_email, $chargeResponse, $shippingFee, $country;
+    public $amount, $currency = "CAD", $source, $description, $receipt_email, $chargeResponse, $shippingFee, $country;
+    public $taxRate, $taxAmount;
     public FormSession $formSession;
     public Payment $payment;
     public Collection $products;
@@ -58,6 +60,18 @@ class StripeService
     public function setShippingFee(float $value)
     {
         $this->shippingFee = $value;
+        return $this;
+    }
+
+    public function setTaxRate(float $value)
+    {
+        $this->taxRate = $value;
+        return $this;
+    }
+
+    public function setTaxAmount(float $value)
+    {
+        $this->taxAmount = $value;
         return $this;
     }
 
@@ -135,12 +149,30 @@ class StripeService
             ],
         ];
 
+        // Create Stripe Tax Rate if tax is applicable
+        $taxRateId = null;
+        if (isset($this->taxRate) && $this->taxRate > 0) {
+            try {
+                $tax = $this->stripeClient->taxRates->create([
+                    'display_name' => 'HST',
+                    'inclusive' => false, // Tax is added on top, not included in price
+                    'percentage' => $this->taxRate, // Tax rate as percentage (e.g., 5 for 5%)
+                    'country' => $this->country ?? 'CA',
+                    'description' => 'HST',
+                ]);
+                $taxRateId = $tax->id;
+            } catch (\Exception $e) {
+                // Log error but don't fail checkout if tax rate creation fails
+                Log::error("Failed to create Stripe tax rate: " . $e->getMessage());
+            }
+        }
+
         $line_items = [];
         // Show products at their original prices
         foreach ($this->products as $product) {
             $originalAmount = $product->selected_price["value"];
-            
-            $line_items[] = [
+
+            $line_item = [
                 'price_data' => [
                     'currency' => $this->currency,
                     'unit_amount' => (int) round($originalAmount * 100),
@@ -151,21 +183,28 @@ class StripeService
                 ],
                 'quantity' => 1,
             ];
+
+            // Apply tax rate to line item if tax is applicable
+            if ($taxRateId) {
+                $line_item['tax_rates'] = [$taxRateId];
+            }
+
+            $line_items[] = $line_item;
         }
-        
+
         $checkout_data["line_items"] = $line_items;
-        
+
         // Apply discount using Stripe's native coupon system
-        $discountAmount = isset($this->payment->discount_amount) && $this->payment->discount_amount > 0 
-            ? (float) $this->payment->discount_amount 
+        $discountAmount = isset($this->payment->discount_amount) && $this->payment->discount_amount > 0
+            ? (float) $this->payment->discount_amount
             : 0;
-        
+
         $discountCode = $this->payment->discount_code ?? null;
-        
+
         if ($discountAmount > 0 && $discountCode) {
             // Get the discount code model to create Stripe coupon
             $discountModel = \App\Models\DiscountCode::where('code', $discountCode)->first();
-            
+
             if ($discountModel) {
                 try {
                     $couponId = $this->getOrCreateStripeCoupon($discountModel, $discountAmount, strtolower($this->currency));
@@ -174,11 +213,11 @@ class StripeService
                     }
                 } catch (\Exception $e) {
                     // Log error but don't fail checkout if coupon creation fails
-                    \Log::error("Failed to create Stripe coupon for discount: " . $e->getMessage());
+                    Log::error("Failed to create Stripe coupon for discount: " . $e->getMessage());
                 }
             }
         }
-        
+
         $checkout_data = array_merge($shipping_info, $checkout_data);
         return $this->stripeClient->checkout->sessions->create($checkout_data);
     }
@@ -188,18 +227,42 @@ class StripeService
         $check = $this->stripeClient->checkout->sessions
             ->retrieve($this->payment->payment_reference);
 
+        // Check Stripe session status first
+        $stripeStatus = $check->status ?? null; // 'complete', 'expired', 'open'
+        $paymentStatus = $check->payment_status ?? null; // 'paid', 'unpaid', 'no_payment_required'
 
-        $stripe_payment = ($check->amount_total / 100);
-        if ($check->payment_status == "paid") {
+        // Handle cancelled status from callback URL or Stripe session
+        if (isset($data["status"]) && $data["status"] == StatusConstants::CANCELLED) {
+            $this->payment->update([
+                "status" => StatusConstants::CANCELLED,
+            ]);
+            return;
+        }
+
+        // Check if session was expired or cancelled
+        if ($stripeStatus === 'expired' || ($stripeStatus === 'complete' && $paymentStatus === 'unpaid')) {
+            $this->payment->update([
+                "status" => StatusConstants::CANCELLED,
+            ]);
+            return;
+        }
+
+        // Handle successful payment
+        if ($paymentStatus == "paid") {
+            $stripe_payment = ($check->amount_total / 100);
             $check_amount = $this->payment->total <= $stripe_payment;
+
             if ($check_amount) {
                 $this->payment->update([
                     "status" => StatusConstants::SUCCESSFUL,
                     "paid_at" => now(),
                 ]);
-                $this->payment->formSession->update([
-                    "status" => StatusConstants::PROCESSING
-                ]);
+                // Only update form session if it exists (not for direct checkout)
+                if ($this->payment->formSession) {
+                    $this->payment->formSession->update([
+                        "status" => StatusConstants::PROCESSING
+                    ]);
+                }
 
                 try {
                     $paymentIntent = $this->stripeClient->paymentIntents->retrieve($check->payment_intent);
@@ -235,10 +298,15 @@ class StripeService
                     "status" => StatusConstants::FAILED
                 ]);
             }
-        } elseif ($data["status"] == StatusConstants::CANCELLED) {
-            $this->payment->update([
-                "status" => StatusConstants::CANCELLED,
-            ]);
+        } elseif ($paymentStatus == "unpaid" && $stripeStatus !== 'expired') {
+            // Payment was not completed but session is still open (user might have closed the window)
+            // Keep as pending or mark as cancelled based on context
+            if (!isset($data["status"])) {
+                // If no explicit status from callback, check if session expired
+                $this->payment->update([
+                    "status" => StatusConstants::CANCELLED,
+                ]);
+            }
         }
     }
 
@@ -250,7 +318,6 @@ class StripeService
         $this->payment->update([
             "status" => StatusConstants::REFUNDED,
         ]);
-
     }
 
     /**

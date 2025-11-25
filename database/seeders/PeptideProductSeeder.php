@@ -71,8 +71,7 @@ class PeptideProductSeeder extends Seeder
             $threeMonthsDose = $this->getValue($row, $indices, '3-Months Dose');
             $reference = $this->getValue($row, $indices, 'Reference');
 
-            // Pricing data
-            $pricingIndividualUsd = $this->cleanPrice($this->getValue($row, $indices, 'Pricing for Individual Clients (USD)'));
+            // Pricing data - Use column H: Pricing for Individual Clients (CAD)
             $pricingIndividualCad = $this->cleanPrice($this->getValue($row, $indices, 'Pricing for Individual Clients (CAD)'));
             $pricingClinicUsd = $this->cleanPrice($this->getValue($row, $indices, 'Pricing for Clinics (USD)'));
             $pricingClinicCad = $this->cleanPrice($this->getValue($row, $indices, 'Pricing for Clinics (CAD)'));
@@ -118,23 +117,15 @@ class PeptideProductSeeder extends Seeder
             // Build price array
             $price = [];
 
-            // Add individual client pricing if available (1 month = 4 weeks)
-            if ($pricingIndividualUsd || $pricingIndividualCad) {
-                $values = [];
-                if ($pricingIndividualUsd) {
-                    $values['usd'] = (float)$pricingIndividualUsd;
-                }
-                if ($pricingIndividualCad) {
-                    $values['cad'] = (float)$pricingIndividualCad;
-                }
-
-                if (!empty($values)) {
-                    $price[] = [
-                        "frequency" => 4,  // 1 month = 4 weeks
-                        "unit" => "week",
-                        "values" => $values
-                    ];
-                }
+            // Add individual client pricing from column H (CAD only) (1 month = 4 weeks)
+            if ($pricingIndividualCad) {
+                $price[] = [
+                    "frequency" => 4,  // 1 month = 4 weeks
+                    "unit" => "week",
+                    "values" => [
+                        "cad" => (float)$pricingIndividualCad
+                    ]
+                ];
             }
 
             // Add clinic pricing if available (3 months = 12 weeks)
@@ -186,6 +177,8 @@ class PeptideProductSeeder extends Seeder
                 "nav_description" => null,
                 "key_ingredients" => $peptide ?: null,
                 "price" => !empty($price) ? $price : null,
+                "checkout_type" => "direct",
+                "requires_patient_clinic_selection" => true,
             ];
 
             // Create or update product

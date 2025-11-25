@@ -73,6 +73,12 @@ class UpdateHardcodedProductInfoSeeder extends Seeder
                     $product->key_ingredients = $data['key_ingredients'];
                 }
 
+                // Set checkout configuration for EpiPen (direct checkout, no patient/clinic selection)
+                if ($productName === 'EpiPen') {
+                    $product->checkout_type = 'direct';
+                    $product->requires_patient_clinic_selection = false;
+                }
+
                 $product->save();
                 $updatedCount++;
                 $this->command->info("Updated: {$productName}");

@@ -144,23 +144,34 @@ class UpdateService
         if (!empty($info)) {
             $country = $info["country"];
         }
-        if (strtolower($country) == "Canada") {
+        if (strtolower($country) == "canada") {
             return [
                 "currency" => "CAD",
                 "country_code" => "CA",
                 "country" => "Canada"
             ];
         }
+        if (strtolower($country) == "united states") {
+            return [
+                "currency" => "USD",
+                "country_code" => "US",
+                "country" => "United States"
+            ];
+        }
+        
+        // Default to Canada if country is not recognized or info is empty
+        if (!empty($info) && isset($info["currency"]) && isset($info["countryCode"])) {
+            return [
+                "currency" => $info["currency"],
+                "country_code" => $info["countryCode"],
+                "country" => $info["country"] ?? "Canada"
+            ];
+        }
+        
         return [
-            "currency" => "USD",
-            "country_code" => "US",
-            "country" => "United States"
-        ];
-
-        return [
-            "currency" => $info["currency"],
-            "country_code" => $info["countryCode"],
-            "country" => $info["country"]
+            "currency" => "CAD",
+            "country_code" => "CA",
+            "country" => "Canada"
         ];
     }
 
@@ -191,11 +202,23 @@ class UpdateService
         $sub_total = $products->sum("selected_price.value");
         $shipping_fee = ProcessorService::getShippingFee($this->formSession);
 
+        // Calculate tax rate (use first product's tax rate or global config)
+        $taxRate = 0;
+        $firstProduct = $products->first();
+        if ($firstProduct) {
+            $taxRate = $firstProduct->getTaxRate();
+        }
+        
+        // Calculate tax amount
+        $taxAmount = $sub_total * ($taxRate / 100);
+
         $checkoutData = array_merge($this->parseGeoData(), [
             "products" => $products,
             "shipping_fee" => floatval(number_format($shipping_fee, 2)),
             "sub_total" => floatval(number_format($sub_total, 2)),
-            "total" => floatval(number_format($sub_total + $shipping_fee, 2))
+            "tax_rate" => floatval($taxRate),
+            "tax_amount" => floatval(number_format($taxAmount, 2)),
+            "total" => floatval(number_format($sub_total + $shipping_fee + $taxAmount, 2))
         ]);
 
         // Apply discount code if provided
@@ -203,6 +226,12 @@ class UpdateService
             try {
                 $discountService = new DiscountCodeService();
                 $checkoutData = $discountService->applyDiscount($checkoutData, $data['discount_code']);
+                
+                // Recalculate tax on discounted subtotal
+                $discountedSubtotal = $checkoutData['sub_total'] - ($checkoutData['discount_amount'] ?? 0);
+                $taxAmount = $discountedSubtotal * ($checkoutData['tax_rate'] / 100);
+                $checkoutData['tax_amount'] = floatval(number_format($taxAmount, 2));
+                $checkoutData['total'] = floatval(number_format($discountedSubtotal + $checkoutData['shipping_fee'] + $taxAmount, 2));
             } catch (\Exception $e) {
                 // Log the error for debugging
                 \Log::error('Discount code application failed: ' . $e->getMessage(), [

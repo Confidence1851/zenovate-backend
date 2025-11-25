@@ -13,8 +13,24 @@ class FormSession extends Model
     protected $guarded = ['id'];
     protected $casts = [
         'data' => 'array',
-        'metadata' => 'array'
+        'metadata' => 'array',
     ];
+
+    /**
+     * Check if this is a direct checkout booking
+     */
+    public function isDirectCheckout(): bool
+    {
+        return $this->booking_type === 'direct';
+    }
+
+    /**
+     * Check if this is a form-based booking
+     */
+    public function isFormBooking(): bool
+    {
+        return $this->booking_type === 'form';
+    }
 
     function completedPayment()
     {

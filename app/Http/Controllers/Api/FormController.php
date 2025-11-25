@@ -82,7 +82,11 @@ class FormController extends Controller
         try {
             $request["payment_id"] = $payment_id;
             $request["status"] = ucfirst($status);
+
+            // All payments now use form sessions (both form and direct checkouts)
+            // The booking_type field on form session determines the redirect logic
             $url = (new ProcessorService)->callback($request->all());
+
             return redirect()->away($url);
         } catch (ValidationException $e) {
             return ApiHelper::inputErrorResponse(
@@ -108,8 +112,65 @@ class FormController extends Controller
             return ApiHelper::validResponse(
                 'Products retrieved successfully',
                 ProductResource::collection(
-                    Product::where('status', StatusConstants::ACTIVE)->get()
+                    Product::where('status', StatusConstants::ACTIVE)->with('productCategories')->get()
                 )
+            );
+        } catch (GeneralException $e) {
+            return ApiHelper::problemResponse(
+                $e->getMessage(),
+                ApiConstants::BAD_REQ_ERR_CODE
+            );
+        } catch (Throwable $e) {
+            return $this->throwableError($e);
+        }
+    }
+
+    function productsByCategories()
+    {
+        try {
+            // Get all unique categories
+            $categories = \App\Models\ProductCategory::select('category_name', 'category_slug', 'category_description', 'category_image_path')
+                ->selectRaw('COUNT(DISTINCT product_id) as products_count')
+                ->groupBy('category_name', 'category_slug', 'category_description', 'category_image_path')
+                ->orderBy('category_name', 'asc')
+                ->get();
+
+            $result = [];
+
+            foreach ($categories as $category) {
+                // Get first 4 products for this category
+                $productIds = \App\Models\ProductCategory::where('category_slug', $category->category_slug)
+                    ->orderBy('order', 'asc')
+                    ->limit(4)
+                    ->pluck('product_id');
+
+                $products = Product::where('status', StatusConstants::ACTIVE)
+                    ->whereIn('id', $productIds)
+                    ->with('productCategories')
+                    ->get();
+
+                $imageUrl = null;
+                if ($category->category_image_path) {
+                    $encrypted = \App\Helpers\Helper::encrypt_decrypt("encrypt", $category->category_image_path);
+                    if ($encrypted) {
+                        $baseUrl = env('APP_URL', 'http://localhost');
+                        $imageUrl = rtrim($baseUrl, '/') . '/api/get-file/' . $encrypted;
+                    }
+                }
+
+                $result[] = [
+                    'name' => $category->category_name,
+                    'slug' => $category->category_slug,
+                    'description' => $category->category_description,
+                    'image_url' => $imageUrl,
+                    'products_count' => $category->products_count,
+                    'products' => ProductResource::collection($products),
+                ];
+            }
+
+            return ApiHelper::validResponse(
+                'Products by categories retrieved successfully',
+                $result
             );
         } catch (GeneralException $e) {
             return ApiHelper::problemResponse(
@@ -129,12 +190,13 @@ class FormController extends Controller
                 ProductResource::make(
                     Product::where('status', StatusConstants::ACTIVE)
                         ->where("slug", $id)
+                        ->with('productCategories')
                         ->firstOrFail()
                 )
             );
         } catch (ModelNotFoundException $e) {
             return ApiHelper::problemResponse(
-                "No product dound with the id provided.",
+                "Sorry, we couldn't find the product you're looking for. It may have been removed or the link is incorrect.",
                 ApiConstants::BAD_REQ_ERR_CODE
             );
         } catch (GeneralException $e) {

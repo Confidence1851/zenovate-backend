@@ -28,37 +28,40 @@ class ProductionDataSeeder extends Seeder
     {
         $this->command->info('Starting production data seeding...');
         $this->command->info('=====================================');
-        
+
         // Step 1: Seed discount codes (independent, needs discount_codes table)
         $this->command->info("\n[1/7] Seeding discount codes...");
         $this->call(DiscountCodeSeeder::class);
-        
+
         // Step 2: Seed base products (needs products table)
         $this->command->info("\n[2/7] Seeding base products...");
         $this->call(ProductTableSeeder::class);
-        
+
         // Step 3: Seed/update products from CSV (needs products table)
         $this->command->info("\n[3/7] Seeding products from CSV...");
         $this->call(PeptideProductSeeder::class);
-        
+
         // Step 4: Update hardcoded product information (needs products table)
         $this->command->info("\n[4/7] Updating hardcoded product information...");
         $this->call(UpdateHardcodedProductInfoSeeder::class);
-        
+
         // Step 5: Map product images to image_path column (needs products table)
         $this->command->info("\n[5/7] Mapping product images...");
         $this->call(MapProductImagesSeeder::class);
-        
+
         // Step 6: Migrate images from image_path to product_images table (needs products and product_images tables)
         $this->command->info("\n[6/7] Migrating product images to product_images table...");
         $this->call(MigrateProductImagesSeeder::class);
-        
+
         // Step 7: Convert product descriptions to HTML format (needs products table)
-        $this->command->info("\n[7/7] Converting product descriptions to HTML...");
+        $this->command->info("\n[7/8] Converting product descriptions to HTML...");
         $this->call(UpdateProductDescriptionsSeeder::class);
-        
+
+        // Step 8: Assign categories to products (needs products and product_category tables)
+        $this->command->info("\n[8/8] Assigning product categories...");
+        $this->call(ProductCategorySeeder::class);
+
         $this->command->info("\n=====================================");
         $this->command->info('Production data seeding completed successfully!');
     }
 }
-
