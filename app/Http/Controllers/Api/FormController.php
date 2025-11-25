@@ -138,11 +138,14 @@ class FormController extends Controller
             $result = [];
 
             foreach ($categories as $category) {
-                // Get first 4 products for this category
+                // Get first 4 ACTIVE products for this category
+                // Join with products table to filter by status first, then limit
                 $productIds = \App\Models\ProductCategory::where('category_slug', $category->category_slug)
-                    ->orderBy('order', 'asc')
+                    ->join('products', 'product_category.product_id', '=', 'products.id')
+                    ->where('products.status', StatusConstants::ACTIVE)
+                    ->orderBy('product_category.order', 'asc')
                     ->limit(4)
-                    ->pluck('product_id');
+                    ->pluck('product_category.product_id');
 
                 $products = Product::where('status', StatusConstants::ACTIVE)
                     ->whereIn('id', $productIds)

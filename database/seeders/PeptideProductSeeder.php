@@ -43,8 +43,11 @@ class PeptideProductSeeder extends Seeder
         }
 
         $rowCount = 0;
+        $dataRowNumber = 0; // Track actual data rows (excluding header and skipped rows)
         $createdCount = 0;
         $updatedCount = 0;
+        $errorCount = 0;
+        $errors = [];
 
         // Read data rows
         while (($row = fgetcsv($file)) !== false) {
@@ -62,6 +65,9 @@ class PeptideProductSeeder extends Seeder
                 continue;
             }
 
+            // Increment data row number for valid peptide rows
+            $dataRowNumber++;
+
             $name = $this->extractFirstName($suggestedNames);
             $peptide = $this->getValue($row, $indices, 'Peptide');
             $benefits = $this->getValue($row, $indices, 'Benefits');
@@ -78,19 +84,19 @@ class PeptideProductSeeder extends Seeder
             $usdPricing = $this->cleanPrice($this->getValue($row, $indices, 'USD(Pricing)'));
             $cadPricing = $this->cleanPrice($this->getValue($row, $indices, 'CAD(Pricing)'));
 
-            // Build description
+            // Build description from CSV data
             $descriptionParts = [];
 
             if ($peptide) {
                 $descriptionParts[] = "Peptide: " . $this->cleanText($peptide);
             }
 
-            if ($benefits) {
-                $descriptionParts[] = "Benefits: " . $this->cleanText($benefits);
-            }
-
             if ($penStrength) {
                 $descriptionParts[] = "Pen Strength: " . $this->cleanText($penStrength);
+            }
+
+            if ($benefits) {
+                $descriptionParts[] = "Benefits: " . $this->cleanText($benefits);
             }
 
             if ($oneMonthDose) {
@@ -109,71 +115,53 @@ class PeptideProductSeeder extends Seeder
                 $descriptionParts[] = "Reference: " . $this->cleanText($reference);
             }
 
-            $description = !empty($descriptionParts) ? implode("\n\n", $descriptionParts) : null;
+            // Get detailed description for active peptides (includes CSV data)
+            $detailedDescription = $this->getDetailedDescription($name, $peptide, $penStrength, $benefits, $threeMonthsDose, $oneMonthDose, $contraindications, $reference);
+
+            // Use detailed description if available, otherwise use the built description from CSV
+            $plainDescription = $detailedDescription ?: (!empty($descriptionParts) ? implode("\n\n", $descriptionParts) : null);
+
+            // Convert to HTML format
+            $description = $plainDescription ? $this->convertToHtml($plainDescription) : null;
 
             // Build subtitle from peptide name
             $subtitle = $peptide ?: null;
 
             // Build price array
+            // For peptides, use ONLY column H: Pricing for Individual Clients (CAD)
+            // Simple pricing (no frequency/unit) - just one price
             $price = [];
 
-            // Add individual client pricing from column H (CAD only) (1 month = 4 weeks)
+            // Only use individual client pricing from column H (CAD only)
             if ($pricingIndividualCad) {
                 $price[] = [
-                    "frequency" => 4,  // 1 month = 4 weeks
-                    "unit" => "week",
                     "values" => [
                         "cad" => (float)$pricingIndividualCad
                     ]
                 ];
             }
 
-            // Add clinic pricing if available (3 months = 12 weeks)
-            if ($pricingClinicUsd || $pricingClinicCad) {
-                $values = [];
-                if ($pricingClinicUsd) {
-                    $values['usd'] = (float)$pricingClinicUsd;
-                }
-                if ($pricingClinicCad) {
-                    $values['cad'] = (float)$pricingClinicCad;
-                }
+            // Determine status: Only these 8 specific peptides should be active
+            $activePeptideNames = [
+                'Zenfit',
+                'Zenergy',
+                'Zenew',
+                'Zenslim',
+                'Zenluma',
+                'ZenCover',
+                'Zenlean',
+                'Zenmune'
+            ];
+            $isActive = in_array($name, $activePeptideNames);
 
-                if (!empty($values)) {
-                    $price[] = [
-                        "frequency" => 12,  // 3 months = 12 weeks
-                        "unit" => "week",
-                        "values" => $values
-                    ];
-                }
-            }
-
-            // Fallback to base pricing if no individual/clinic pricing
-            if (empty($price) && ($usdPricing || $cadPricing)) {
-                $values = [];
-                if ($usdPricing) {
-                    $values['usd'] = (float)$usdPricing;
-                }
-                if ($cadPricing) {
-                    $values['cad'] = (float)$cadPricing;
-                }
-
-                if (!empty($values)) {
-                    $price[] = [
-                        "frequency" => 12,
-                        "unit" => "week",
-                        "values" => $values
-                    ];
-                }
-            }
-
-            // Prepare product data
+            // Prepare product data for update
+            // Note: We don't set airtable_id to null to preserve existing values in production
             $productData = [
                 "name" => $name,
                 "subtitle" => $subtitle,
                 "description" => $description ?: null,
                 "benefits" => $benefits ?: null,
-                "status" => StatusConstants::ACTIVE,
-                "airtable_id" => null,
+                "status" => $isActive ? StatusConstants::ACTIVE : StatusConstants::INACTIVE,
                 "nav_description" => null,
                 "key_ingredients" => $peptide ?: null,
                 "price" => !empty($price) ? $price : null,
@@ -181,30 +169,65 @@ class PeptideProductSeeder extends Seeder
                 "requires_patient_clinic_selection" => true,
             ];
 
-            // Create or update product
-            $product = Product::where('name', $name)->first();
+            try {
+                // Use updateOrCreate for idempotency (safe to run multiple times)
+                // This ensures the product is created if it doesn't exist, or updated if it does
+                $product = Product::updateOrCreate(
+                    ['name' => $name], // Search by name
+                    $productData       // Update/create with this data
+                );
 
-            if ($product) {
-                $product->update($productData);
+                // Generate/update slug (this handles both new and existing products)
                 $product->slug = ProductService::generateSlug($product);
                 $product->save();
-                $updatedCount++;
-                $this->command->info("Updated: {$name}");
-            } else {
-                $product = new Product($productData);
-                $product->slug = ProductService::generateSlug($product);
-                $product->save();
-                $createdCount++;
-                $this->command->info("Created: {$name}");
+
+                // Track counts
+                if ($product->wasRecentlyCreated) {
+                    $createdCount++;
+                    $this->command->info("Created: {$name}");
+                } else {
+                    $updatedCount++;
+                    $this->command->info("Updated: {$name} (Status: " . $product->status . ")");
+                }
+            } catch (\Exception $e) {
+                $errorCount++;
+                $errorMessage = "Error processing {$name}: " . $e->getMessage();
+                $errors[] = $errorMessage;
+                $this->command->error($errorMessage);
+                // Continue processing other products even if one fails
             }
         }
 
         fclose($file);
 
-        $this->command->info("\nSeeder completed!");
+        // Summary output
+        $this->command->info("\n" . str_repeat("=", 50));
+        $this->command->info("Seeder completed!");
+        $this->command->info(str_repeat("=", 50));
         $this->command->info("Total rows processed: {$rowCount}");
         $this->command->info("Products created: {$createdCount}");
         $this->command->info("Products updated: {$updatedCount}");
+
+        if ($errorCount > 0) {
+            $this->command->warn("Errors encountered: {$errorCount}");
+            foreach ($errors as $error) {
+                $this->command->error("  - {$error}");
+            }
+        } else {
+            $this->command->info("✓ No errors encountered");
+        }
+
+        // Verify active peptides count
+        $activePeptides = Product::where('status', StatusConstants::ACTIVE)
+            ->whereIn('name', ['Zenfit', 'Zenergy', 'Zenew', 'Zenslim', 'Zenluma', 'ZenCover', 'Zenlean', 'Zenmune'])
+            ->count();
+
+        $this->command->info("\nActive peptides: {$activePeptides} (expected: 8)");
+        if ($activePeptides === 8) {
+            $this->command->info("✓ Active peptides count is correct");
+        } else {
+            $this->command->warn("⚠ Active peptides count mismatch! Expected 8, found {$activePeptides}");
+        }
     }
 
     /**
@@ -260,5 +283,181 @@ class PeptideProductSeeder extends Seeder
         $cleaned = trim($cleaned);
 
         return $cleaned;
+    }
+
+    /**
+     * Get detailed description for active peptides (includes CSV data)
+     */
+    private function getDetailedDescription(string $name, ?string $peptide, ?string $penStrength, ?string $benefits, ?string $researchDose, ?string $oneMonthDose, ?string $contraindications, ?string $reference): ?string
+    {
+        $descriptions = [
+            'Zenfit' => [
+                'category' => 'Sterile Self-Injection Research Pen',
+                'peptide' => $peptide ?: 'Ipamorelin/CJC-1295',
+                'strength' => $penStrength ?: '5 mg/mL · 3 mL pen (15 mg total)',
+                'indications' => 'Recovery, GH support, improved metabolism',
+                'research_dose' => $researchDose ?: '60–75 mcg per day, 5 days/week',
+                'storage' => 'Keep refrigerated 2–8°C; protect from light.',
+            ],
+            'Zenergy' => [
+                'category' => 'Sterile Self-Injection Research Pen',
+                'peptide' => $peptide ?: 'MOTS-c',
+                'strength' => $penStrength ?: '5 mg/mL · 3 mL pen (15 mg total)',
+                'indications' => 'Improved metabolism, Mitochondrial health',
+                'research_dose' => $researchDose ?: '0.3 mg per week OR 0.15 mg twice weekly',
+                'storage' => 'Keep refrigerated 2–8°C; protect from light.',
+            ],
+            'Zenew' => [
+                'category' => 'Sterile Self-Injection Research Pen',
+                'peptide' => $peptide ?: 'NAD+',
+                'strength' => $penStrength ?: '100 mg/mL · 3 mL pen (300 mg total)',
+                'indications' => 'Cellular repair, energy metabolism, neuroprotection',
+                'research_dose' => $researchDose ?: '6 mg once weekly OR 3 mg twice weekly',
+                'storage' => 'Keep refrigerated 2–8°C; protect from light.',
+            ],
+            'Zenslim' => [
+                'category' => 'Sterile Self-Injection Research Pen',
+                'peptide' => $peptide ?: 'Retatrutide',
+                'strength' => $penStrength ?: '10 mg/mL · 3 mL pen (30 mg total)',
+                'indications' => 'Appetite control, weight reduction, metabolic enhancement',
+                'research_dose' => $researchDose ?: '0.6 mg once weekly OR 0.3 mg twice weekly',
+                'storage' => 'Refrigerate 2–8°C; protect from light.',
+            ],
+            'Zenluma' => [
+                'category' => 'Sterile Self-Injection Research Pen',
+                'peptide' => $peptide ?: 'GHK-Cu',
+                'strength' => $penStrength ?: '10 mg/mL · 3 mL pen (30 mg total)',
+                'indications' => 'Wound healing, anti-aging, collagen support',
+                'research_dose' => $researchDose ?: '80–100 mcg per day OR 200–250 mcg per day, 3–4 days/week',
+                'storage' => 'Keep refrigerated 2–8°C; protect from light.',
+            ],
+            'ZenCover' => [
+                'category' => 'Sterile Self-Injection Research Pen',
+                'peptide' => $peptide ?: 'TB-500 + BPC-157',
+                'strength' => $penStrength ?: '5 mg/mL · 3 mL pen (15 mg total)',
+                'indications' => 'Tissue healing, joint/tendon recovery',
+                'research_dose' => $researchDose ?: '250 mcg per day, 2–3 days/week',
+                'storage' => 'Keep refrigerated 2–8°C; protect from light.',
+            ],
+            'Zenlean' => [
+                'category' => 'Sterile Self-Injection Research Pen',
+                'peptide' => $peptide ?: 'Tesamorelin',
+                'strength' => $penStrength ?: '5 mg/mL · 3 mL pen (15 mg total)',
+                'indications' => 'Reduction of visceral abdominal fat',
+                'research_dose' => $researchDose ?: '40–50 mcg/day',
+                'storage' => 'Keep refrigerated 2–8°C; protect from light.',
+            ],
+            'Zenmune' => [
+                'category' => 'Sterile Self-Injection Research Pen',
+                'peptide' => $peptide ?: 'Thymosin Alpha-1',
+                'strength' => $penStrength ?: '10 mg/mL · 3 mL pen (30 mg total)',
+                'indications' => 'Immune modulation, immune balance',
+                'research_dose' => $researchDose ?: '1.25 mg × 2 weekly',
+                'storage' => 'Keep refrigerated 2–8°C; protect from light.',
+            ],
+        ];
+
+        if (!isset($descriptions[$name])) {
+            return null;
+        }
+
+        $info = $descriptions[$name];
+
+        // Build description with CSV data
+        $description = "Category: {$info['category']}\n\n";
+        $description .= "{$name} ({$info['peptide']})\n\n";
+        $description .= "Strength: {$info['strength']}\n\n";
+
+        // Add benefits from CSV if available
+        if ($benefits) {
+            $description .= "Benefits: {$benefits}\n\n";
+        }
+
+        $description .= "Future Possible Indications: {$info['indications']}\n\n";
+        $description .= "Research Dose: {$info['research_dose']}\n\n";
+
+        // Add 1-Month Dose from CSV if available
+        if ($oneMonthDose) {
+            $description .= "1-Month Dose: {$oneMonthDose}\n\n";
+        }
+
+        // Add 3-Months Dose from CSV if available
+        if ($researchDose && $researchDose !== $info['research_dose']) {
+            $description .= "3-Months Dose: {$researchDose}\n\n";
+        }
+
+        $description .= "Storage: {$info['storage']}\n\n";
+
+        // Add contraindications from CSV if available
+        if ($contraindications) {
+            $description .= "Contraindications: {$contraindications}\n\n";
+        }
+
+        // Add reference from CSV if available
+        if ($reference) {
+            $description .= "Reference: {$reference}\n\n";
+        }
+
+        $description .= "⚠️Sterile - For Research Use Only";
+
+        return $description;
+    }
+
+    /**
+     * Convert plain text description to HTML format
+     */
+    private function convertToHtml(string $description): string
+    {
+        // Split by double newlines to get sections
+        $sections = preg_split('/\n\s*\n/', trim($description));
+
+        $htmlSections = [];
+
+        foreach ($sections as $section) {
+            $section = trim($section);
+            if (empty($section)) {
+                continue;
+            }
+
+            // Check if section starts with a label (e.g., "Peptide:", "Benefits:")
+            $labelPattern = '/^([^:]+):\s*(.+)$/';
+
+            if (preg_match($labelPattern, $section, $matches)) {
+                $label = trim($matches[1]);
+                $content = trim($matches[2]);
+
+                // Convert URLs in content to clickable links
+                $content = $this->convertUrlsToLinks($content);
+
+                // Convert single newlines within content to <br> tags
+                $content = nl2br($content, false);
+
+                $htmlSections[] = "<div><strong>{$label}:</strong> {$content}</div>";
+            } else {
+                // Section without a label (like the product name line or disclaimer)
+                $content = $this->convertUrlsToLinks($section);
+                $content = nl2br($content, false);
+                $htmlSections[] = "<div>{$content}</div>";
+            }
+        }
+
+        return implode('', $htmlSections);
+    }
+
+    /**
+     * Convert URLs in text to clickable links
+     */
+    private function convertUrlsToLinks(string $text): string
+    {
+        // Pattern to match URLs (more comprehensive)
+        $urlPattern = '/(https?:\/\/[^\s<>"\'\)]+)/i';
+
+        return preg_replace_callback($urlPattern, function ($matches) {
+            $url = trim($matches[1]);
+            // Remove trailing punctuation that might not be part of the URL
+            $url = rtrim($url, '.,;:!?)');
+            $escapedUrl = htmlspecialchars($url, ENT_QUOTES, 'UTF-8');
+            return '<a href="' . $escapedUrl . '" target="_blank" rel="noopener noreferrer">' . $escapedUrl . '</a>';
+        }, $text);
     }
 }
