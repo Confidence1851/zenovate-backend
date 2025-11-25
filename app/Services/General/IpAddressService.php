@@ -13,6 +13,11 @@ class IpAddressService
 
     public static function check($ip_address)
     {
+        // Return empty array for localhost IP addresses
+        if (in_array($ip_address, ['127.0.0.1', '::1', 'localhost', '0.0.0.0'])) {
+            return [];
+        }
+
         $curl = curl_init();
         curl_setopt_array($curl, array(
             CURLOPT_URL => "http://ip-api.com/php/$ip_address",
@@ -31,19 +36,19 @@ class IpAddressService
         return $data ?? [];
     }
 
-    public static function info($ip_address = null , $force = false)
+    public static function info($ip_address = null, $force = false)
     {
         $ip_address = $ip_address ?? request()->ip();
         $key = "location_country_{$ip_address}";
 
-        if($force){
+        if ($force) {
             cache()->forget($key);
         }
 
-        $info = cache()->get($key , []);
+        $info = cache()->get($key, []);
         if (empty($info)) {
             $check = self::check($ip_address);
-            if ($check["status"] == "success") {
+            if (isset($check["status"]) && $check["status"] == "success") {
                 cache()->put($key, $check, now()->addMinutes(10));
                 $currencies = [
                     "CA" => "CAD",

@@ -26,6 +26,8 @@ class ProductResource extends JsonResource
             "price" => $this->getLocationPrice(),
             "quantity" => 1,
             "selected_price" => $this->selected_price,
+            "image_path" => $this->image_path,
+            "image_url" => $this->getImageUrls(),
         ];
     }
 }

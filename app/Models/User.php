@@ -58,6 +58,11 @@ class User extends Authenticatable
         });
     }
 
+    public function scopeRole($query, $role)
+    {
+        return $query->where('role', $role);
+    }
+
     function getFullNameAttribute()  {
         return $this->first_name . " " . $this->last_name;
     }

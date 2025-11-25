@@ -27,7 +27,8 @@ class AdminController extends Controller
         $users = $builder->paginate()->appends($request->query());
         return view("admin.pages.admins.index", [
             "sn" => $users->firstItem(),
-            "users" => $users
+            "users" => $users,
+            "statuses" => []
         ]);
     }
 
