@@ -8,6 +8,7 @@ use App\Helpers\ApiHelper;
 use App\Http\Controllers\Controller;
 use App\Services\DirectCheckout\DirectCheckoutService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 use Throwable;
 
@@ -27,7 +28,7 @@ class DirectCheckoutController extends Controller
                 'email' => 'required|email|max:255',
                 'use_type' => 'nullable|string|in:patient,clinic',
             ]);
-            
+
             $service = new DirectCheckoutService();
             $checkoutData = $service->initializeCheckout(
                 $validated['product_id'],
@@ -37,7 +38,7 @@ class DirectCheckoutController extends Controller
                 $validated['email'],
                 $validated['use_type'] ?? null
             );
-            
+
             return ApiHelper::validResponse(
                 'Checkout initialized successfully',
                 $checkoutData
@@ -55,13 +56,22 @@ class DirectCheckoutController extends Controller
                 ApiConstants::BAD_REQ_ERR_CODE
             );
         } catch (Throwable $e) {
+            // Log the full error for debugging but don't expose it to users
+            Log::error('Direct checkout initialization failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'request' => $request->all()
+            ]);
+
             return ApiHelper::problemResponse(
-                $e->getMessage() ?: 'An error occurred while initializing checkout',
-                ApiConstants::SERVER_ERR_CODE
+                'An error occurred while initializing checkout. Please try again later.',
+                ApiConstants::SERVER_ERR_CODE,
+                $request,
+                $e
             );
         }
     }
-    
+
     /**
      * Apply discount code to checkout
      */
@@ -72,13 +82,13 @@ class DirectCheckoutController extends Controller
                 'checkout_id' => 'required|string',
                 'discount_code' => 'required|string',
             ]);
-            
+
             $service = new DirectCheckoutService();
             $checkoutData = $service->applyDiscount(
                 $validated['checkout_id'],
                 $validated['discount_code']
             );
-            
+
             return ApiHelper::validResponse(
                 'Discount applied successfully',
                 $checkoutData
@@ -91,18 +101,34 @@ class DirectCheckoutController extends Controller
                 $e
             );
         } catch (\Exception $e) {
+            Log::error('Direct checkout discount application failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'request' => $request->all()
+            ]);
+
             return ApiHelper::problemResponse(
-                $e->getMessage(),
-                ApiConstants::BAD_REQ_ERR_CODE
+                'An error occurred while applying discount. Please try again later.',
+                ApiConstants::BAD_REQ_ERR_CODE,
+                $request,
+                $e
             );
         } catch (Throwable $e) {
+            Log::error('Direct checkout discount application failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'request' => $request->all()
+            ]);
+
             return ApiHelper::problemResponse(
-                'An error occurred while applying discount',
-                ApiConstants::SERVER_ERR_CODE
+                'An error occurred while applying discount. Please try again later.',
+                ApiConstants::SERVER_ERR_CODE,
+                $request,
+                $e
             );
         }
     }
-    
+
     /**
      * Process payment and redirect to Stripe
      */
@@ -112,10 +138,10 @@ class DirectCheckoutController extends Controller
             $validated = $request->validate([
                 'checkout_id' => 'required|string',
             ]);
-            
+
             $service = new DirectCheckoutService();
             $result = $service->processPayment($validated['checkout_id']);
-            
+
             return ApiHelper::validResponse(
                 'Payment processed successfully',
                 $result
@@ -133,11 +159,18 @@ class DirectCheckoutController extends Controller
                 ApiConstants::BAD_REQ_ERR_CODE
             );
         } catch (Throwable $e) {
+            Log::error('Direct checkout payment processing failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'request' => $request->all()
+            ]);
+
             return ApiHelper::problemResponse(
-                $e->getMessage() ?: 'An error occurred while processing payment',
-                ApiConstants::SERVER_ERR_CODE
+                'An error occurred while processing payment. Please try again later.',
+                ApiConstants::SERVER_ERR_CODE,
+                $request,
+                $e
             );
         }
     }
 }
-
