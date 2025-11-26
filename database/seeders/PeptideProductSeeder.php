@@ -96,11 +96,11 @@ class PeptideProductSeeder extends Seeder
             }
 
             if ($benefits) {
-                $descriptionParts[] = "Benefits: " . $this->cleanText($benefits);
+                $descriptionParts[] = "Potential Benefits: " . $this->cleanText($benefits);
             }
 
             if ($oneMonthDose) {
-                $descriptionParts[] = "1-Month Dose: " . $this->cleanText($oneMonthDose);
+                $descriptionParts[] = "Mega Research Dose: " . $this->cleanText($oneMonthDose);
             }
 
             if ($threeMonthsDose) {
@@ -370,15 +370,15 @@ class PeptideProductSeeder extends Seeder
 
         // Add benefits from CSV if available
         if ($benefits) {
-            $description .= "Benefits: {$benefits}\n\n";
+            $description .= "Potential Benefits: {$benefits}\n\n";
         }
 
         $description .= "Future Possible Indications: {$info['indications']}\n\n";
         $description .= "Research Dose: {$info['research_dose']}\n\n";
 
-        // Add 1-Month Dose from CSV if available
+        // Add Mega Research Dose from CSV if available
         if ($oneMonthDose) {
-            $description .= "1-Month Dose: {$oneMonthDose}\n\n";
+            $description .= "Mega Research Dose: {$oneMonthDose}\n\n";
         }
 
         // Add 3-Months Dose from CSV if available
