@@ -70,15 +70,15 @@ class PeptideProductSeeder extends Seeder
 
             $name = $this->extractFirstName($suggestedNames);
             $peptide = $this->getValue($row, $indices, 'Peptide');
-            $benefits = $this->getValue($row, $indices, 'Benefits');
+            $benefits = $this->getValue($row, $indices, 'Research-Based Observations');
             $contraindications = $this->getValue($row, $indices, 'Contraindications');
             $penStrength = $this->getValue($row, $indices, 'Pen Strength');
             $oneMonthDose = $this->getValue($row, $indices, '1-Month Dose');
             $threeMonthsDose = $this->getValue($row, $indices, '3-Months Dose');
             $reference = $this->getValue($row, $indices, 'Reference');
 
-            // Pricing data - Use column H: Pricing for Individual Clients (CAD)
-            $pricingIndividualCad = $this->cleanPrice($this->getValue($row, $indices, 'Pricing for Individual Clients (CAD)'));
+            // Pricing data - Use column G: Pricing for Individual Clients (USD)
+            $pricingIndividualUsd = $this->cleanPrice($this->getValue($row, $indices, 'Pricing for Individual Clients (USD)'));
             $pricingClinicUsd = $this->cleanPrice($this->getValue($row, $indices, 'Pricing for Clinics (USD)'));
             $pricingClinicCad = $this->cleanPrice($this->getValue($row, $indices, 'Pricing for Clinics (CAD)'));
             $usdPricing = $this->cleanPrice($this->getValue($row, $indices, 'USD(Pricing)'));
@@ -128,15 +128,15 @@ class PeptideProductSeeder extends Seeder
             $subtitle = $peptide ?: null;
 
             // Build price array
-            // For peptides, use ONLY column H: Pricing for Individual Clients (CAD)
+            // For peptides, use ONLY column G: Pricing for Individual Clients (USD)
             // Simple pricing (no frequency/unit) - just one price
             $price = [];
 
-            // Only use individual client pricing from column H (CAD only)
-            if ($pricingIndividualCad) {
+            // Only use individual client pricing from column G (USD only)
+            if ($pricingIndividualUsd) {
                 $price[] = [
                     "values" => [
-                        "cad" => (float)$pricingIndividualCad
+                        "usd" => (float)$pricingIndividualUsd
                     ]
                 ];
             }
@@ -170,23 +170,49 @@ class PeptideProductSeeder extends Seeder
             ];
 
             try {
-                // Find existing product by name to avoid duplicate key errors
-                $product = Product::where('name', $name)->first();
+                // Use updateOrCreate with proper error handling
+                // This ensures we update if exists, create if not, and handles race conditions
+                $product = Product::updateOrCreate(
+                    ['name' => $name], // Search criteria
+                    $productData       // Data to update/create
+                );
 
-                if ($product) {
-                    // Product exists - update it
-                    $product->fill($productData);
-                    $product->slug = ProductService::generateSlug($product);
-                    $product->save();
-                    $updatedCount++;
-                    $this->command->info("Updated: {$name} (Status: " . $product->status . ")");
-                } else {
-                    // Product doesn't exist - create it
-                    $product = new Product($productData);
-                    $product->slug = ProductService::generateSlug($product);
-                    $product->save();
+                // Generate/update slug (this handles both new and existing products)
+                $product->slug = ProductService::generateSlug($product);
+                $product->save();
+
+                // Track counts
+                if ($product->wasRecentlyCreated) {
                     $createdCount++;
                     $this->command->info("Created: {$name}");
+                } else {
+                    $updatedCount++;
+                    $this->command->info("Updated: {$name} (Status: " . $product->status . ")");
+                }
+            } catch (\Illuminate\Database\QueryException $e) {
+                // Handle duplicate key errors specifically
+                if ($e->getCode() == 23000 && strpos($e->getMessage(), 'Duplicate entry') !== false) {
+                    // Product exists but wasn't found by name - try to find and update it
+                    $product = Product::where('name', $name)->first();
+                    if ($product) {
+                        $product->fill($productData);
+                        $product->slug = ProductService::generateSlug($product);
+                        $product->save();
+                        $updatedCount++;
+                        $this->command->info("Updated: {$name} (Status: " . $product->status . ")");
+                    } else {
+                        // Still can't find it - log error but continue
+                        $errorCount++;
+                        $errorMessage = "Error processing {$name}: Product exists but could not be found for update";
+                        $errors[] = $errorMessage;
+                        $this->command->error($errorMessage);
+                    }
+                } else {
+                    // Other database errors
+                    $errorCount++;
+                    $errorMessage = "Error processing {$name}: " . $e->getMessage();
+                    $errors[] = $errorMessage;
+                    $this->command->error($errorMessage);
                 }
             } catch (\Exception $e) {
                 $errorCount++;
