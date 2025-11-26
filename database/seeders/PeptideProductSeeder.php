@@ -170,24 +170,23 @@ class PeptideProductSeeder extends Seeder
             ];
 
             try {
-                // Use updateOrCreate for idempotency (safe to run multiple times)
-                // This ensures the product is created if it doesn't exist, or updated if it does
-                $product = Product::updateOrCreate(
-                    ['name' => $name], // Search by name
-                    $productData       // Update/create with this data
-                );
+                // Find existing product by name to avoid duplicate key errors
+                $product = Product::where('name', $name)->first();
 
-                // Generate/update slug (this handles both new and existing products)
-                $product->slug = ProductService::generateSlug($product);
-                $product->save();
-
-                // Track counts
-                if ($product->wasRecentlyCreated) {
-                    $createdCount++;
-                    $this->command->info("Created: {$name}");
-                } else {
+                if ($product) {
+                    // Product exists - update it
+                    $product->fill($productData);
+                    $product->slug = ProductService::generateSlug($product);
+                    $product->save();
                     $updatedCount++;
                     $this->command->info("Updated: {$name} (Status: " . $product->status . ")");
+                } else {
+                    // Product doesn't exist - create it
+                    $product = new Product($productData);
+                    $product->slug = ProductService::generateSlug($product);
+                    $product->save();
+                    $createdCount++;
+                    $this->command->info("Created: {$name}");
                 }
             } catch (\Exception $e) {
                 $errorCount++;
