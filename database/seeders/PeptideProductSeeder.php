@@ -366,7 +366,7 @@ class PeptideProductSeeder extends Seeder
         // Build description with CSV data
         $description = "Category: {$info['category']}\n\n";
         $description .= "{$name} ({$info['peptide']})\n\n";
-        $description .= "Strength: {$info['strength']}\n\n";
+        $description .= "Each pen contains: {$info['strength']}\n\n";
 
         // Add benefits from CSV if available
         if ($benefits) {

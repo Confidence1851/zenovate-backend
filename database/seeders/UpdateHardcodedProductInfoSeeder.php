@@ -9,6 +9,27 @@ use Illuminate\Database\Seeder;
 class UpdateHardcodedProductInfoSeeder extends Seeder
 {
     /**
+     * Convert benefits text to HTML list with checkmarks
+     */
+    private function benefitsToHtmlList(string $benefits): string
+    {
+        $lines = array_filter(array_map('trim', explode("\n", $benefits)));
+        if (empty($lines)) {
+            return '';
+        }
+
+        $checkmarkSvg = '<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" style="flex-shrink: 0; margin-right: 0.5rem; margin-top: 0.125rem;"><path d="M17.9425 6.06717L7.94254 16.0672C7.88449 16.1253 7.81556 16.1714 7.73969 16.2028C7.66381 16.2343 7.58248 16.2505 7.50035 16.2505C7.41821 16.2505 7.33688 16.2343 7.26101 16.2028C7.18514 16.1714 7.11621 16.1253 7.05816 16.0672L2.68316 11.6922C2.56588 11.5749 2.5 11.4158 2.5 11.25C2.5 11.0841 2.56588 10.9251 2.68316 10.8078C2.80044 10.6905 2.9595 10.6246 3.12535 10.6246C3.2912 10.6246 3.45026 10.6905 3.56753 10.8078L7.50035 14.7414L17.0582 5.18279C17.1754 5.06552 17.3345 4.99963 17.5003 4.99963C17.6662 4.99963 17.8253 5.06552 17.9425 5.18279C18.0598 5.30007 18.1257 5.45913 18.1257 5.62498C18.1257 5.79083 18.0598 5.94989 17.9425 6.06717Z" fill="#31302F"/></svg>';
+
+        $listItems = '';
+        foreach ($lines as $line) {
+            $escapedLine = htmlspecialchars($line, ENT_QUOTES, 'UTF-8');
+            $listItems .= '<li style="display: flex; align-items: flex-start; margin-bottom: 0.5rem;">' . $checkmarkSvg . '<span>' . $escapedLine . '</span></li>';
+        }
+
+        return '<div><strong>Key Benefits:</strong><ul style="list-style: none; padding-left: 0; margin-top: 0.5rem;">' . $listItems . '</ul></div>';
+    }
+
+    /**
      * Run the database seeds.
      */
     public function run(): void
@@ -64,7 +85,12 @@ class UpdateHardcodedProductInfoSeeder extends Seeder
                     $product->subtitle = $data['subtitle'];
                 }
                 if (!empty($data['description'])) {
-                    $product->description = $data['description'];
+                    $description = $data['description'];
+                    // For EpiPen, add Key Benefits section with checkmarks
+                    if ($productName === 'EpiPen' && !empty($data['benefits'])) {
+                        $description .= $this->benefitsToHtmlList($data['benefits']);
+                    }
+                    $product->description = $description;
                 }
                 if (!empty($data['benefits'])) {
                     $product->benefits = $data['benefits'];

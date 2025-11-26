@@ -18,14 +18,17 @@ use Throwable;
 class CategoryController extends Controller
 {
     /**
-     * List all unique categories with product counts
+     * List all unique categories with product counts (only categories with active products)
      */
     public function index()
     {
         try {
             $categories = ProductCategory::select('category_name', 'category_slug', 'category_description', 'category_image_path')
-                ->selectRaw('COUNT(DISTINCT product_id) as products_count')
+                ->join('products', 'product_category.product_id', '=', 'products.id')
+                ->where('products.status', StatusConstants::ACTIVE)
+                ->selectRaw('COUNT(DISTINCT product_category.product_id) as products_count')
                 ->groupBy('category_name', 'category_slug', 'category_description', 'category_image_path')
+                ->having('products_count', '>', 0)
                 ->orderBy('category_name', 'asc')
                 ->get()
                 ->map(function ($item) {
@@ -72,8 +75,19 @@ class CategoryController extends Controller
                 );
             }
 
+            // Count only active products
             $productsCount = ProductCategory::where('category_slug', $slug)
+                ->join('products', 'product_category.product_id', '=', 'products.id')
+                ->where('products.status', StatusConstants::ACTIVE)
                 ->count();
+
+            // Return 404 if category has no active products
+            if ($productsCount === 0) {
+                return ApiHelper::problemResponse(
+                    'Category not found',
+                    ApiConstants::NOT_FOUND_ERR_CODE
+                );
+            }
 
             $imageUrl = null;
             if ($category->category_image_path) {

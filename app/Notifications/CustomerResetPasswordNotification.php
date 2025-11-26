@@ -38,7 +38,7 @@ class CustomerResetPasswordNotification extends Notification
             ->subject("Reset Password Notification")
             ->greeting("Hello!")
             ->line("You are receiving this email because we received a password reset request for your account.")
-            ->action('Reset Password', env("FRONTEND_APP_SITE_URL")."/auth/reset-password/".$this->hash)
+            ->action('Reset Password', rtrim(config('frontend.site_url'), '/')."/auth/reset-password/".$this->hash)
             ->line("This password reset link will expire in 60 minutes.")
             ->line('If you did not request a password reset, no further action is required.');
     }

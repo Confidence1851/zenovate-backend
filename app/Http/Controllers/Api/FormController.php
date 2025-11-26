@@ -128,10 +128,13 @@ class FormController extends Controller
     function productsByCategories()
     {
         try {
-            // Get all unique categories
+            // Get all unique categories that have at least one active product
             $categories = \App\Models\ProductCategory::select('category_name', 'category_slug', 'category_description', 'category_image_path')
-                ->selectRaw('COUNT(DISTINCT product_id) as products_count')
+                ->join('products', 'product_category.product_id', '=', 'products.id')
+                ->where('products.status', StatusConstants::ACTIVE)
+                ->selectRaw('COUNT(DISTINCT product_category.product_id) as products_count')
                 ->groupBy('category_name', 'category_slug', 'category_description', 'category_image_path')
+                ->having('products_count', '>', 0)
                 ->orderBy('category_name', 'asc')
                 ->get();
 
@@ -152,23 +155,26 @@ class FormController extends Controller
                     ->with('productCategories')
                     ->get();
 
-                $imageUrl = null;
-                if ($category->category_image_path) {
-                    $encrypted = \App\Helpers\Helper::encrypt_decrypt("encrypt", $category->category_image_path);
-                    if ($encrypted) {
-                        $baseUrl = env('APP_URL', 'http://localhost');
-                        $imageUrl = rtrim($baseUrl, '/') . '/api/get-file/' . $encrypted;
+                // Only add category if it has active products
+                if ($products->count() > 0) {
+                    $imageUrl = null;
+                    if ($category->category_image_path) {
+                        $encrypted = \App\Helpers\Helper::encrypt_decrypt("encrypt", $category->category_image_path);
+                        if ($encrypted) {
+                            $baseUrl = env('APP_URL', 'http://localhost');
+                            $imageUrl = rtrim($baseUrl, '/') . '/api/get-file/' . $encrypted;
+                        }
                     }
-                }
 
-                $result[] = [
-                    'name' => $category->category_name,
-                    'slug' => $category->category_slug,
-                    'description' => $category->category_description,
-                    'image_url' => $imageUrl,
-                    'products_count' => $category->products_count,
-                    'products' => ProductResource::collection($products),
-                ];
+                    $result[] = [
+                        'name' => $category->category_name,
+                        'slug' => $category->category_slug,
+                        'description' => $category->category_description,
+                        'image_url' => $imageUrl,
+                        'products_count' => $category->products_count,
+                        'products' => ProductResource::collection($products),
+                    ];
+                }
             }
 
             return ApiHelper::validResponse(

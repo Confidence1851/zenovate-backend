@@ -111,7 +111,7 @@ class ProcessorService
 
         if ($formSession && $formSession->isDirectCheckout()) {
             // Direct checkout redirects - use SITE URL
-            $siteUrl = env("FRONTEND_APP_SITE_URL", env("FRONTEND_APP_URL"));
+            $siteUrl = rtrim(config('frontend.site_url'), '/');
             if ($payment->status === StatusConstants::SUCCESSFUL) {
                 $redirect_url = $siteUrl . "/checkout/success?ref={$payment->reference}";
             } elseif ($payment->status === StatusConstants::CANCELLED) {
@@ -122,7 +122,7 @@ class ProcessorService
             }
         } else {
             // Form-based checkout - redirect to result page with encrypted hash - use FORM URL
-            $formUrl = env("FRONTEND_APP_URL");
+            $formUrl = rtrim(config('frontend.form_url'), '/');
             $hash = base64_encode((new EncryptionService)->encrypt([
                 "key" => "payment",
                 "value" => $payment->form_session_id

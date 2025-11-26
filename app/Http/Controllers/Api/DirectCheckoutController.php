@@ -173,4 +173,76 @@ class DirectCheckoutController extends Controller
             );
         }
     }
+
+    /**
+     * Get product ID from payment reference
+     */
+    public function getProductFromPayment(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                'reference' => 'required|string',
+            ]);
+
+            $payment = \App\Models\Payment::where('reference', $validated['reference'])->first();
+
+            if (!$payment) {
+                return ApiHelper::problemResponse(
+                    'Payment not found',
+                    ApiConstants::NOT_FOUND_ERR_CODE
+                );
+            }
+
+            // Get product from payment products relationship
+            $product = $payment->products()->first();
+
+            if (!$product) {
+                // Try to get from form session metadata for direct checkout
+                $formSession = $payment->formSession;
+                if ($formSession && $formSession->isDirectCheckout()) {
+                    $metadata = $formSession->metadata['raw'] ?? [];
+                    $selectedProducts = $metadata['selectedProducts'] ?? [];
+                    if (!empty($selectedProducts) && isset($selectedProducts[0]['product_id'])) {
+                        $productId = $selectedProducts[0]['product_id'];
+                        $product = \App\Models\Product::find($productId);
+                    }
+                }
+            }
+
+            if (!$product) {
+                return ApiHelper::problemResponse(
+                    'Product not found for this payment',
+                    ApiConstants::NOT_FOUND_ERR_CODE
+                );
+            }
+
+            return ApiHelper::validResponse(
+                'Product retrieved successfully',
+                [
+                    'product_id' => $product->id,
+                    'product_slug' => $product->slug,
+                ]
+            );
+        } catch (ValidationException $e) {
+            return ApiHelper::inputErrorResponse(
+                $e->getMessage(),
+                ApiConstants::VALIDATION_ERR_CODE,
+                $request,
+                $e
+            );
+        } catch (Throwable $e) {
+            Log::error('Failed to get product from payment reference', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'request' => $request->all()
+            ]);
+
+            return ApiHelper::problemResponse(
+                'An error occurred while retrieving product information.',
+                ApiConstants::SERVER_ERR_CODE,
+                $request,
+                $e
+            );
+        }
+    }
 }

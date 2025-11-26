@@ -54,5 +54,6 @@ Route:: as("api.")->group(function () {
         Route::post('/init', [\App\Http\Controllers\Api\DirectCheckoutController::class, 'init'])->name('direct-checkout.init');
         Route::post('/apply-discount', [\App\Http\Controllers\Api\DirectCheckoutController::class, 'applyDiscount'])->name('direct-checkout.apply-discount');
         Route::post('/process', [\App\Http\Controllers\Api\DirectCheckoutController::class, 'process'])->name('direct-checkout.process');
+        Route::get('/product-from-payment', [\App\Http\Controllers\Api\DirectCheckoutController::class, 'getProductFromPayment'])->name('direct-checkout.product-from-payment');
     });
 });

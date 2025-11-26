@@ -282,7 +282,7 @@ class UpdateService
                 "value" => $this->formSession->user_id,
                 "expires_at" => now()->addMinute()
             ]));
-            $redirect_url = env("FRONTEND_APP_SITE_URL") . "/auth/authenticate/$hash";
+            $redirect_url = rtrim(config('frontend.site_url'), '/') . "/auth/authenticate/$hash";
 
             return [
                 "redirect_url" => $redirect_url
