@@ -6,20 +6,20 @@ use Illuminate\Database\Eloquent\Model;
 
 class ProductCategory extends Model
 {
-    protected $table = 'product_category';
-    
+    protected $table = 'product_categories';
+
     protected $guarded = ['id'];
-    
+
     protected $casts = [
         'order' => 'integer',
     ];
 
     /**
-     * Get the product that owns this category assignment
+     * Get all products in this category
      */
-    public function product()
+    public function products()
     {
-        return $this->belongsTo(Product::class);
+        return $this->hasMany(Product::class, 'category_id');
     }
 
     /**
@@ -27,7 +27,7 @@ class ProductCategory extends Model
      */
     public function scopeByCategory($query, $slug)
     {
-        return $query->where('category_slug', $slug);
+        return $query->where('slug', $slug);
     }
 
     /**
@@ -41,14 +41,14 @@ class ProductCategory extends Model
     /**
      * Get category image URL
      */
-    public function getCategoryImageUrlAttribute()
+    public function getImageUrlAttribute()
     {
-        if (!$this->category_image_path) {
+        if (!$this->image_path) {
             return null;
         }
 
         // Generate secure URL for category image (same method as products)
-        $encrypted = \App\Helpers\Helper::encrypt_decrypt("encrypt", $this->category_image_path);
+        $encrypted = \App\Helpers\Helper::encrypt_decrypt("encrypt", $this->image_path);
         if ($encrypted) {
             $baseUrl = env('APP_URL', 'http://localhost');
             return rtrim($baseUrl, '/') . '/api/get-file/' . $encrypted;

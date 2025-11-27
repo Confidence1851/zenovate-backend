@@ -23,6 +23,7 @@ class ProductResource extends JsonResource
             "nav_description" => $this->nav_description,
             "key_ingredients" => $this->key_ingredients,
             "benefits" => $this->benefits,
+            "potency" => $this->potency,
             "price" => $this->getLocationPrice(),
             "quantity" => 1,
             "selected_price" => $this->selected_price,
@@ -32,7 +33,7 @@ class ProductResource extends JsonResource
             "requires_patient_clinic_selection" => (bool) ($this->requires_patient_clinic_selection ?? false),
             "shipping_fee" => $this->shipping_fee,
             "tax_rate" => $this->tax_rate,
-            "product_categories" => ProductCategoryResource::collection($this->whenLoaded('productCategories')),
+            "category" => new ProductCategoryResource($this->whenLoaded('category')),
         ];
     }
 }

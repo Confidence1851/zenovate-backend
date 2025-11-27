@@ -16,10 +16,10 @@ class ProductCategoryResource extends JsonResource
     {
         return [
             "id" => $this->id,
-            "category_name" => $this->category_name,
-            "category_slug" => $this->category_slug,
-            "category_description" => $this->category_description,
-            "category_image_url" => $this->category_image_url,
+            "name" => $this->name,
+            "slug" => $this->slug,
+            "description" => $this->description,
+            "image_url" => $this->image_url,
             "order" => $this->order,
         ];
     }

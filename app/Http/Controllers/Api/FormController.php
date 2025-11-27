@@ -112,7 +112,7 @@ class FormController extends Controller
             return ApiHelper::validResponse(
                 'Products retrieved successfully',
                 ProductResource::collection(
-                    Product::where('status', StatusConstants::ACTIVE)->with('productCategories')->get()
+                    Product::where('status', StatusConstants::ACTIVE)->with('category')->get()
                 )
             );
         } catch (GeneralException $e) {
@@ -129,48 +129,31 @@ class FormController extends Controller
     {
         try {
             // Get all unique categories that have at least one active product
-            $categories = \App\Models\ProductCategory::select('category_name', 'category_slug', 'category_description', 'category_image_path')
-                ->join('products', 'product_category.product_id', '=', 'products.id')
-                ->where('products.status', StatusConstants::ACTIVE)
-                ->selectRaw('COUNT(DISTINCT product_category.product_id) as products_count')
-                ->groupBy('category_name', 'category_slug', 'category_description', 'category_image_path')
+            $categories = \App\Models\ProductCategory::withCount(['products' => function ($query) {
+                $query->where('status', StatusConstants::ACTIVE);
+            }])
                 ->having('products_count', '>', 0)
-                ->orderBy('category_name', 'asc')
+                ->orderBy('name', 'asc')
                 ->get();
 
             $result = [];
 
             foreach ($categories as $category) {
                 // Get first 4 ACTIVE products for this category
-                // Join with products table to filter by status first, then limit
-                $productIds = \App\Models\ProductCategory::where('category_slug', $category->category_slug)
-                    ->join('products', 'product_category.product_id', '=', 'products.id')
-                    ->where('products.status', StatusConstants::ACTIVE)
-                    ->orderBy('product_category.order', 'asc')
-                    ->limit(4)
-                    ->pluck('product_category.product_id');
-
                 $products = Product::where('status', StatusConstants::ACTIVE)
-                    ->whereIn('id', $productIds)
-                    ->with('productCategories')
+                    ->where('category_id', $category->id)
+                    ->orderBy('id', 'asc')
+                    ->limit(4)
+                    ->with('category')
                     ->get();
 
                 // Only add category if it has active products
                 if ($products->count() > 0) {
-                    $imageUrl = null;
-                    if ($category->category_image_path) {
-                        $encrypted = \App\Helpers\Helper::encrypt_decrypt("encrypt", $category->category_image_path);
-                        if ($encrypted) {
-                            $baseUrl = env('APP_URL', 'http://localhost');
-                            $imageUrl = rtrim($baseUrl, '/') . '/api/get-file/' . $encrypted;
-                        }
-                    }
-
                     $result[] = [
-                        'name' => $category->category_name,
-                        'slug' => $category->category_slug,
-                        'description' => $category->category_description,
-                        'image_url' => $imageUrl,
+                        'name' => $category->name,
+                        'slug' => $category->slug,
+                        'description' => $category->description,
+                        'image_url' => $category->image_url,
                         'products_count' => $category->products_count,
                         'products' => ProductResource::collection($products),
                     ];
@@ -199,7 +182,7 @@ class FormController extends Controller
                 ProductResource::make(
                     Product::where('status', StatusConstants::ACTIVE)
                         ->where("slug", $id)
-                        ->with('productCategories')
+                        ->with('category')
                         ->firstOrFail()
                 )
             );

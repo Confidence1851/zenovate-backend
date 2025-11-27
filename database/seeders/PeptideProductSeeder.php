@@ -124,6 +124,25 @@ class PeptideProductSeeder extends Seeder
             // Convert to HTML format
             $description = $plainDescription ? $this->convertToHtml($plainDescription) : null;
 
+            // Extract potency from penStrength or get default from getDetailedDescription
+            $potency = $penStrength;
+            if (!$potency) {
+                // Get default strength from the descriptions array
+                $descriptionsArray = [
+                    'Zenfit' => '5 mg/mL · 3 mL pen (15 mg total)',
+                    'Zenergy' => '5 mg/mL · 3 mL pen (15 mg total)',
+                    'Zenew' => '100 mg/mL · 3 mL pen (300 mg total)',
+                    'Zenslim' => '10 mg/mL · 3 mL pen (30 mg total)',
+                    'Zenluma' => '10 mg/mL · 3 mL pen (30 mg total)',
+                    'ZenCover' => '5 mg/mL · 3 mL pen (15 mg total)',
+                    'Zenlean' => '5 mg/mL · 3 mL pen (15 mg total)',
+                    'Zenmune' => '10 mg/mL · 3 mL pen (30 mg total)',
+                ];
+                if (isset($descriptionsArray[$name])) {
+                    $potency = $descriptionsArray[$name];
+                }
+            }
+
             // Build subtitle from peptide name
             $subtitle = $peptide ?: null;
 
@@ -161,6 +180,7 @@ class PeptideProductSeeder extends Seeder
                 "subtitle" => $subtitle,
                 "description" => $description ?: null,
                 "benefits" => $benefits ?: null,
+                "potency" => $potency ?: null,
                 "status" => $isActive ? StatusConstants::ACTIVE : StatusConstants::INACTIVE,
                 "nav_description" => null,
                 "key_ingredients" => $peptide ?: null,

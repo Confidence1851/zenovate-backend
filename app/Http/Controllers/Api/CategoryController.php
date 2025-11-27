@@ -23,30 +23,21 @@ class CategoryController extends Controller
     public function index()
     {
         try {
-            $categories = ProductCategory::select('category_name', 'category_slug', 'category_description', 'category_image_path')
-                ->join('products', 'product_category.product_id', '=', 'products.id')
-                ->where('products.status', StatusConstants::ACTIVE)
-                ->selectRaw('COUNT(DISTINCT product_category.product_id) as products_count')
-                ->groupBy('category_name', 'category_slug', 'category_description', 'category_image_path')
+            $categories = ProductCategory::withCount(['products' => function ($query) {
+                $query->where('status', StatusConstants::ACTIVE);
+            }])
                 ->having('products_count', '>', 0)
-                ->orderBy('category_name', 'asc')
+                ->orderBy('order', 'asc')
+                ->orderBy('name', 'asc')
                 ->get()
-                ->map(function ($item) {
-                    $imageUrl = null;
-                    if ($item->category_image_path) {
-                        $encrypted = \App\Helpers\Helper::encrypt_decrypt("encrypt", $item->category_image_path);
-                        if ($encrypted) {
-                            $baseUrl = env('APP_URL', 'http://localhost');
-                            $imageUrl = rtrim($baseUrl, '/') . '/api/get-file/' . $encrypted;
-                        }
-                    }
-
+                ->map(function ($category) {
                     return [
-                        'name' => $item->category_name,
-                        'slug' => $item->category_slug,
-                        'description' => $item->category_description,
-                        'image_url' => $imageUrl,
-                        'products_count' => $item->products_count,
+                        'name' => $category->name,
+                        'slug' => $category->slug,
+                        'description' => $category->description,
+                        'image_url' => $category->image_url,
+                        'products_count' => $category->products_count,
+                        'order' => $category->order,
                     ];
                 });
 
@@ -65,7 +56,10 @@ class CategoryController extends Controller
     public function show($slug)
     {
         try {
-            $category = ProductCategory::where('category_slug', $slug)
+            $category = ProductCategory::where('slug', $slug)
+                ->withCount(['products' => function ($query) {
+                    $query->where('status', StatusConstants::ACTIVE);
+                }])
                 ->first();
 
             if (!$category) {
@@ -75,35 +69,20 @@ class CategoryController extends Controller
                 );
             }
 
-            // Count only active products
-            $productsCount = ProductCategory::where('category_slug', $slug)
-                ->join('products', 'product_category.product_id', '=', 'products.id')
-                ->where('products.status', StatusConstants::ACTIVE)
-                ->count();
-
             // Return 404 if category has no active products
-            if ($productsCount === 0) {
+            if ($category->products_count === 0) {
                 return ApiHelper::problemResponse(
                     'Category not found',
                     ApiConstants::NOT_FOUND_ERR_CODE
                 );
             }
 
-            $imageUrl = null;
-            if ($category->category_image_path) {
-                $encrypted = \App\Helpers\Helper::encrypt_decrypt("encrypt", $category->category_image_path);
-                if ($encrypted) {
-                    $baseUrl = env('APP_URL', 'http://localhost');
-                    $imageUrl = rtrim($baseUrl, '/') . '/api/get-file/' . $encrypted;
-                }
-            }
-
             $categoryData = [
-                'name' => $category->category_name,
-                'slug' => $category->category_slug,
-                'description' => $category->category_description,
-                'image_url' => $imageUrl,
-                'products_count' => $productsCount,
+                'name' => $category->name,
+                'slug' => $category->slug,
+                'description' => $category->description,
+                'image_url' => $category->image_url,
+                'products_count' => $category->products_count,
             ];
 
             return ApiHelper::validResponse(
@@ -121,12 +100,18 @@ class CategoryController extends Controller
     public function products($slug)
     {
         try {
-            $productIds = ProductCategory::where('category_slug', $slug)
-                ->pluck('product_id');
+            $category = ProductCategory::where('slug', $slug)->first();
+
+            if (!$category) {
+                return ApiHelper::problemResponse(
+                    'Category not found',
+                    ApiConstants::BAD_REQ_ERR_CODE
+                );
+            }
 
             $products = Product::where('status', StatusConstants::ACTIVE)
-                ->whereIn('id', $productIds)
-                ->with('productCategories')
+                ->where('category_id', $category->id)
+                ->with('category')
                 ->get();
 
             return ApiHelper::validResponse(

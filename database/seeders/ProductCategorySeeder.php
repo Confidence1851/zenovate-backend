@@ -7,6 +7,7 @@ use App\Models\ProductCategory;
 use App\Helpers\StatusConstants;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class ProductCategorySeeder extends Seeder
@@ -21,7 +22,7 @@ class ProductCategorySeeder extends Seeder
         // Define categories
         $categories = [
             [
-                'name' => 'Peptides',
+                'name' => 'Peptides and more',
                 'slug' => 'peptides',
                 'description' => 'Advanced peptide formulations for targeted health benefits',
             ],
@@ -37,6 +38,22 @@ class ProductCategorySeeder extends Seeder
             ],
         ];
 
+        // Create or get categories in product_categories table
+        $categoryIds = [];
+        foreach ($categories as $categoryData) {
+            $category = ProductCategory::where('slug', $categoryData['slug'])->first();
+
+            if (!$category) {
+                $category = ProductCategory::create([
+                    'name' => $categoryData['name'],
+                    'slug' => $categoryData['slug'],
+                    'description' => $categoryData['description'],
+                    'order' => 0,
+                ]);
+            }
+            $categoryIds[$categoryData['slug']] = $category->id;
+        }
+
         // Get all active products
         $products = Product::where('status', StatusConstants::ACTIVE)->get();
 
@@ -50,27 +67,18 @@ class ProductCategorySeeder extends Seeder
         foreach ($products as $product) {
             // Determine category based on product name or assign default
             $category = $this->determineCategory($product->name, $categories);
-            
-            if ($category) {
-                // Check if category already exists for this product
-                $existing = ProductCategory::where('product_id', $product->id)
-                    ->where('category_slug', $category['slug'])
-                    ->first();
 
-                if (!$existing) {
-                    ProductCategory::create([
-                        'product_id' => $product->id,
-                        'category_name' => $category['name'],
-                        'category_slug' => $category['slug'],
-                        'category_description' => $category['description'],
-                        'order' => 0,
-                    ]);
+            if ($category && isset($categoryIds[$category['slug']])) {
+                // Update product with category_id
+                if ($product->category_id !== $categoryIds[$category['slug']]) {
+                    $product->category_id = $categoryIds[$category['slug']];
+                    $product->save();
                     $assignedCount++;
                 }
             }
         }
 
-        $this->command->info("Product categories seeded successfully! Assigned {$assignedCount} categories.");
+        $this->command->info("Product categories seeded successfully! Assigned {$assignedCount} categories to products.");
     }
 
     /**

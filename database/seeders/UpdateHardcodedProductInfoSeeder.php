@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\Product;
+use App\Helpers\StatusConstants;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
@@ -100,9 +101,11 @@ class UpdateHardcodedProductInfoSeeder extends Seeder
                 }
 
                 // Set checkout configuration for EpiPen (direct checkout, no patient/clinic selection)
+                // Also set EpiPen status to Inactive
                 if ($productName === 'EpiPen') {
                     $product->checkout_type = 'direct';
                     $product->requires_patient_clinic_selection = false;
+                    $product->status = StatusConstants::INACTIVE;
                 }
 
                 $product->save();

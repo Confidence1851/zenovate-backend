@@ -30,11 +30,11 @@ class Product extends Model
     }
 
     /**
-     * Get product categories
+     * Get the category this product belongs to
      */
-    public function productCategories()
+    public function category()
     {
-        return $this->hasMany(ProductCategory::class)->ordered();
+        return $this->belongsTo(ProductCategory::class, 'category_id');
     }
 
     function getLocationPrice()
@@ -45,7 +45,7 @@ class Product extends Model
         $list = [];
         foreach ($this->price as $value) {
             $currencyKey = strtolower($currency);
-            
+
             // Check if the requested currency exists, otherwise fall back to CAD or first available
             if (!isset($value["values"][$currencyKey])) {
                 // Try CAD first (default)
@@ -62,11 +62,11 @@ class Product extends Model
                     $currency = strtoupper($currencyKey);
                 }
             }
-            
+
             $value["value"] = $value["values"][$currencyKey];
             $value["currency"] = $currency;
             unset($value["values"]);
-            
+
             $price_id = ["product_id" => $this->id, "value" => $value];
             $value["id"] = Helper::encrypt(json_encode($price_id));
             $list[] = $value;
@@ -151,7 +151,7 @@ class Product extends Model
         if ($this->shipping_fee !== null) {
             return (float) $this->shipping_fee;
         }
-        
+
         return (float) config('checkout.shipping_fee', env('CHECKOUT_SHIPPING_FEE', 60));
     }
 
@@ -163,8 +163,7 @@ class Product extends Model
         if ($this->tax_rate !== null) {
             return (float) $this->tax_rate;
         }
-        
+
         return (float) config('checkout.tax_rate', env('CHECKOUT_TAX_RATE', 0));
     }
-
 }

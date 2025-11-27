@@ -35,6 +35,15 @@ class DiscountCodeSeeder extends Seeder
                 'status' => 'Active',
                 'usage_limit' => 0, // Unlimited
             ],
+            [
+                'code' => '20JF',
+                'type' => 'percentage',
+                'value' => 20.00,
+                'status' => 'Active',
+                'start_date' => null,
+                'end_date' => null, // No expiry
+                'usage_limit' => 0, // Unlimited
+            ],
         ];
 
         foreach ($codes as $codeData) {
@@ -48,4 +57,3 @@ class DiscountCodeSeeder extends Seeder
         $this->command->info("\nDiscount codes seeded successfully!");
     }
 }
-
