@@ -108,7 +108,7 @@ class DirectCheckoutController extends Controller
             ]);
 
             return ApiHelper::problemResponse(
-                'An error occurred while applying discount. Please try again later.',
+                $e->getMessage(),
                 ApiConstants::BAD_REQ_ERR_CODE,
                 $request,
                 $e
@@ -121,7 +121,7 @@ class DirectCheckoutController extends Controller
             ]);
 
             return ApiHelper::problemResponse(
-                'An error occurred while applying discount. Please try again later.',
+                $e->getMessage(),
                 ApiConstants::SERVER_ERR_CODE,
                 $request,
                 $e
