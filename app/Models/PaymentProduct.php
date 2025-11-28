@@ -23,8 +23,16 @@ class PaymentProduct extends Model
     function getPrice()
     {
         $info = $this->price;
-        if(empty($info)) return "N/A";
-        return strtoupper($info["currency"] . "" . number_format($info["value"], 2) .
-            " / {$info['frequency']} {$info['unit']}");
+        if (empty($info)) return "N/A";
+
+        $priceString = strtoupper($info["currency"] . "" . number_format($info["value"], 2));
+
+        // Handle both subscription products (with frequency/unit) and one-time products (without)
+        if (isset($info['frequency']) && isset($info['unit'])) {
+            return $priceString . " / {$info['frequency']} {$info['unit']}";
+        }
+
+        // For one-time purchases (like peptides), just return the price
+        return $priceString;
     }
 }

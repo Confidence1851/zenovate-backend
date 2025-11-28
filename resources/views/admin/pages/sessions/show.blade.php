@@ -48,6 +48,10 @@
                                 <b>Status:</b> {{ $dto->status() ?? 'N/A' }}
                             </p>
                             <p>
+                                <b>Booking Type:</b>
+                                <x-status-badge :value="$session->getBookingTypeDisplay()" />
+                            </p>
+                            <p>
                                 <b>Signed Document:</b>
                                 @if (!empty(($url = $session->docuseal_url)))
                                     <a href="{{ $url }}" target="_blank" rel="noopener noreferrer">View</a>
@@ -103,23 +107,40 @@
                                 </p>
                             @else
                                 <p>
-                                    <b>Sub Total:</b>{{ strtoupper($dto->payment->currency) }}
+                                    <b>Currency:</b> {{ strtoupper($dto->payment->currency) }}
+                                </p>
+                                <p>
+                                    <b>Sub Total:</b> {{ strtoupper($dto->payment->currency) }}
                                     {{ number_format($dto->payment->sub_total, 2) }}
                                 </p>
+                                @if (!empty($dto->payment->discount_code) && !empty($dto->payment->discount_amount))
+                                    <p>
+                                        <b>Discount Code:</b> {{ $dto->payment->discount_code }}
+                                    </p>
+                                    <p>
+                                        <b>Discount Amount:</b> -{{ strtoupper($dto->payment->currency) }}
+                                        {{ number_format($dto->payment->discount_amount, 2) }}
+                                    </p>
+                                @endif
                                 <p>
-                                    <b>Shipping Fee:</b>{{ strtoupper($dto->payment->currency) }}
-                                    {{ number_format($dto->payment->shipping_fee, 2) }}
+                                    <b>Shipping Fee:</b> {{ strtoupper($dto->payment->currency) }}
+                                    {{ number_format($dto->payment->shipping_fee ?? 0, 2) }}
                                 </p>
                                 <p>
-                                    <b>Total:</b>{{ strtoupper($dto->payment->currency) }}
+                                    <b>Total:</b> {{ strtoupper($dto->payment->currency) }}
                                     {{ number_format($dto->payment->total, 2) }}
                                 </p>
                                 <p>
-                                    <b>Paid At:</b>{{ $dto->payment->paid_at ?? 'N/A' }}
+                                    <b>Paid At:</b> {{ $dto->payment->paid_at ?? 'N/A' }}
                                 </p>
                                 <p>
-                                    <b>Receipt:</b> <a href="{{ $dto->payment->receipt_url }}" target="_blank"
-                                        rel="noopener noreferrer">View</a>
+                                    <b>Receipt:</b>
+                                    @if (!empty($dto->payment->receipt_url))
+                                        <a href="{{ $dto->payment->receipt_url }}" target="_blank"
+                                            rel="noopener noreferrer">View</a>
+                                    @else
+                                        N/A
+                                    @endif
                                 </p>
                             @endif
                         </div>
@@ -188,51 +209,53 @@
                 </div>
             </div>
 
-            <div class="card mb-4">
-                <div class="card-header justify-content-between align-items-center d-flex">
-                    <h6 class="card-title m-0">Questionnaire</h6>
+            @if ($session->isFormBooking())
+                <div class="card mb-4">
+                    <div class="card-header justify-content-between align-items-center d-flex">
+                        <h6 class="card-title m-0">Questionnaire</h6>
+                    </div>
+                    <div class="card-body">
+                        <table class="table table-bordered table-striped">
+                            <thead>
+                                <tr>
+                                    <th class="p_5">QUESTION</th>
+                                    <th class="p_5">ANSWER</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach ($dto->questions() as $question)
+                                    @if ($question['type'] == 'group')
+                                        <tr>
+                                            <td colspan="2"><br></td>
+                                        </tr>
+                                        <tr>
+                                            <td colspan="2">
+                                                <h6 class="title">{{ $question['title'] }}</h6>
+                                                <small class="text-grey">{{ $question['subtitle'] }}</small>
+                                                <hr>
+                                            </td>
+                                        </tr>
+                                    @else
+                                        <tr>
+                                            <td style="width: 40%;"><b>{{ $question['question'] }}</b></td>
+                                            <td>
+                                                {{ $question['value'] ?? 'N/A' }}
+                                                @if (!empty(($sub = $question['sub'] ?? null)) && !empty(($v = $sub['value'])))
+                                                    <br><br>
+                                                    <div class="alert alert-dark">
+                                                        <div><b class="text-grey">{{ $sub['placeholder'] }}</b></div>
+                                                        <div>{{ $v }}</div>
+                                                    </div>
+                                                @endif
+                                            </td>
+                                        </tr>
+                                    @endif
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
-                <div class="card-body">
-                    <table class="table table-bordered table-striped">
-                        <thead>
-                            <tr>
-                                <th class="p_5">QUESTION</th>
-                                <th class="p_5">ANSWER</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach ($dto->questions() as $question)
-                                @if ($question['type'] == 'group')
-                                    <tr>
-                                        <td colspan="2"><br></td>
-                                    </tr>
-                                    <tr>
-                                        <td colspan="2">
-                                            <h6 class="title">{{ $question['title'] }}</h6>
-                                            <small class="text-grey">{{ $question['subtitle'] }}</small>
-                                            <hr>
-                                        </td>
-                                    </tr>
-                                @else
-                                    <tr>
-                                        <td style="width: 40%;"><b>{{ $question['question'] }}</b></td>
-                                        <td>
-                                            {{ $question['value'] ?? 'N/A' }}
-                                            @if (!empty(($sub = $question['sub'] ?? null)) && !empty(($v = $sub['value'])))
-                                                <br><br>
-                                                <div class="alert alert-dark">
-                                                    <div><b class="text-grey">{{ $sub['placeholder'] }}</b></div>
-                                                    <div>{{ $v }}</div>
-                                                </div>
-                                            @endif
-                                        </td>
-                                    </tr>
-                                @endif
-                            @endforeach
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+            @endif
 
         </section>
         <!-- / Content-->

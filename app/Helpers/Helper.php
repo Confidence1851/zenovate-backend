@@ -133,19 +133,20 @@ class Helper
         return $exists;
     }
     /**
-    * @param $mode = ["encrypt" , "decrypt"]
-    * @param $path =
-    */
+     * @param $mode = ["encrypt" , "decrypt"]
+     * @param $path =
+     */
     static function readFileUrl($mode, $path)
     {
         if (strtolower($mode) == "encrypt") {
             $path = base64_encode($path);
             return route("web.read_file", $path);
         }
-         return base64_decode($path);
+        return base64_decode($path);
     }
 
-    static function sudo(){
+    static function sudo()
+    {
         return User::firstOrCreate([
             "role" => AppConstants::ROLE_SUDO
         ], [
@@ -207,5 +208,14 @@ class Helper
         return number_format($number, $decimals, $decPoint, $thousandsSep);
     }
 
+    /**
+     * Get Bootstrap badge/pill classes for a given status value
+     * 
+     * @param string $value The status value to get classes for
+     * @return string Bootstrap badge classes (e.g., 'success text-white', 'danger', etc.)
+     */
+    public static function pillClasses($value)
+    {
+        return AppConstants::PILL_CLASSES[$value] ?? 'primary';
+    }
 }
-

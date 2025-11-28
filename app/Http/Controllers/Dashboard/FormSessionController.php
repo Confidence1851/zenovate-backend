@@ -20,7 +20,7 @@ class FormSessionController extends Controller
      */
     public function index(Request $request)
     {
-        $builder = FormSession::query();
+        $builder = FormSession::query()->with(['completedPayment', 'user']);
         if (!empty($key = $request->search)) {
             $builder = $builder->search($key);
         }

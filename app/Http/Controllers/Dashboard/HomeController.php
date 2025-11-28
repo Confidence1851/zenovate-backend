@@ -57,12 +57,12 @@ class HomeController extends Controller
                 "label" => "Payments Collected",
                 "count" => [
                     "USD" => number_format(Payment::where("status", StatusConstants::SUCCESSFUL)->where("currency", "USD")->sum("total"), 2),
-                    "CAD" => number_format(Payment::where("status", StatusConstants::SUCCESSFUL)->where("currency", "CAD")->sum("total"),2),
+                    "CAD" => number_format(Payment::where("status", StatusConstants::SUCCESSFUL)->where("currency", "CAD")->sum("total"), 2),
                 ],
-                "link" => route("dashboard.payments.index" , ["status" => StatusConstants::SUCCESSFUL])
+                "link" => route("dashboard.payments.index", ["status" => StatusConstants::SUCCESSFUL])
             ],
         ];
-        $sessions = FormSession::limit(10)->latest()->get();
+        $sessions = FormSession::with(['completedPayment', 'user'])->limit(10)->latest()->get();
         return view("admin.pages.index.index", [
             "stats" => $stats,
             "sessions" => $sessions

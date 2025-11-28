@@ -27,7 +27,7 @@
                     <h6 class="card-title m-0">Payments</h6>
                 </div>
                 <div class="card-body">
-                    @include("admin.pages.payments.fragments.search")
+                    @include('admin.pages.payments.fragments.search')
                     <div class="table-responsive">
                         <table class="table m-0 table-striped">
                             <thead>
@@ -47,22 +47,31 @@
                                 @foreach ($payments as $payment)
                                     <tr>
                                         <td>{{ $sn++ }}</td>
-                                        <td>{{ $payment->formSession->reference ?? "N/A" }}</td>
+                                        <td>{{ $payment->formSession->reference ?? 'N/A' }}</td>
                                         <td>{{ $payment->reference }}</td>
-                                        <td>{{ $payment->getAmount("sub_total") ?? "N/A" }}</td>
-                                        <td>{{ $payment->getAmount("shipping_fee") ?? "N/A" }}</td>
-                                        <td>{{ $payment->getAmount("total") ?? "N/A" }}</td>
-                                        <td>{{ $payment->status }}</td>
+                                        <td>{{ $payment->getAmount('sub_total') ?? 'N/A' }}</td>
+                                        <td>{{ $payment->getAmount('shipping_fee') ?? 'N/A' }}</td>
+                                        <td>{{ $payment->getAmount('total') ?? 'N/A' }}</td>
+                                        <td>
+                                            <x-status-badge :value="$payment->status" />
+                                        </td>
                                         <td>{{ $payment->created_at }}</td>
                                         <td>
-                                            <a href="{{ route("dashboard.payments.show" , $payment->id )}}" class="btn btn-sm btn-info">View</a>
+                                            <div class="d-flex gap-2">
+                                                <a href="{{ route('dashboard.payments.show', $payment->id) }}"
+                                                    class="btn btn-sm btn-info">View</a>
+                                                @if ($payment->formSession)
+                                                    <a href="{{ route('dashboard.form-sessions.show', $payment->formSession->id) }}"
+                                                        class="btn btn-sm btn-primary">View Form</a>
+                                                @endif
+                                            </div>
                                         </td>
                                     </tr>
                                 @endforeach
                             </tbody>
                         </table>
                     </div>
-                    {!! $payments->links("pagination::bootstrap-4") !!}
+                    {!! $payments->links('pagination::bootstrap-4') !!}
                 </div>
             </div>
         </section>

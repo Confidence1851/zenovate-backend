@@ -3,8 +3,13 @@
         <tr>
             <th>SN</th>
             <th>Unique Reference</th>
+            <th>Customer Name</th>
+            <th>Email</th>
+            <th>Phone</th>
             {{-- <th>Stage</th> --}}
             <th>Status</th>
+            <th>Payment Status</th>
+            <th>Booking Type</th>
             <th>Date</th>
             <th></th>
         </tr>
@@ -14,8 +19,19 @@
             <tr>
                 <td>{{ $sn++ }}</td>
                 <td>{{ $session->reference }}</td>
+                <td>{{ $session->getCustomerName() }}</td>
+                <td>{{ $session->getCustomerEmail() }}</td>
+                <td>{{ $session->getCustomerPhone() }}</td>
                 {{-- <td>{{ $session->stage }}</td> --}}
-                <td>{{ $session->getStatus() }}</td>
+                <td>
+                    <x-status-badge :value="$session->getStatus()" />
+                </td>
+                <td>
+                    <x-status-badge :value="$session->getPaymentStatus()" />
+                </td>
+                <td>
+                    <x-status-badge :value="$session->getBookingTypeDisplay()" />
+                </td>
                 <td>{{ $session->created_at }}</td>
                 <td>
                     <a class="btn btn-sm btn-primary" href="{{ route('dashboard.form-sessions.show', $session->id) }}">
