@@ -149,9 +149,13 @@ class PeptideProductSeeder extends Seeder
             // Clean up subtitle for Zenluma - remove "Skinglow" or "Skin glow" if present
             if ($name === 'Zenluma' && $subtitle) {
                 // Remove "Skinglow", "Skin glow", "Skin Glow" and any parentheses/brackets containing them
+                // Handle cases like "GHK-CU(Skin glow)" or "GHK-CU (Skin glow)"
                 $subtitle = preg_replace('/\s*\([^)]*(?:Skin\s*glow|Skinglow)[^)]*\)/i', '', $subtitle);
+                $subtitle = preg_replace('/\([^)]*(?:Skin\s*glow|Skinglow)[^)]*\)/i', '', $subtitle);
                 $subtitle = preg_replace('/\s*\[[^\]]*(?:Skin\s*glow|Skinglow)[^\]]*\]/i', '', $subtitle);
+                $subtitle = preg_replace('/\[[^\]]*(?:Skin\s*glow|Skinglow)[^\]]*\]/i', '', $subtitle);
                 $subtitle = preg_replace('/\s*(?:Skin\s*glow|Skinglow)/i', '', $subtitle);
+                $subtitle = preg_replace('/(?:Skin\s*glow|Skinglow)/i', '', $subtitle);
                 $subtitle = trim($subtitle);
                 // If subtitle becomes empty after cleaning, use default
                 if (empty($subtitle)) {
@@ -421,9 +425,27 @@ class PeptideProductSeeder extends Seeder
 
         $info = $descriptions[$name];
 
+        // Clean up peptide name for Zenluma - remove "Skin glow" if present
+        $peptideName = $info['peptide'];
+        if ($name === 'Zenluma' && $peptideName) {
+            // Remove "Skinglow", "Skin glow", "Skin Glow" and any parentheses/brackets containing them
+            // Handle cases like "GHK-CU(Skin glow)" or "GHK-CU (Skin glow)"
+            $peptideName = preg_replace('/\s*\([^)]*(?:Skin\s*glow|Skinglow)[^)]*\)/i', '', $peptideName);
+            $peptideName = preg_replace('/\([^)]*(?:Skin\s*glow|Skinglow)[^)]*\)/i', '', $peptideName);
+            $peptideName = preg_replace('/\s*\[[^\]]*(?:Skin\s*glow|Skinglow)[^\]]*\]/i', '', $peptideName);
+            $peptideName = preg_replace('/\[[^\]]*(?:Skin\s*glow|Skinglow)[^\]]*\]/i', '', $peptideName);
+            $peptideName = preg_replace('/\s*(?:Skin\s*glow|Skinglow)/i', '', $peptideName);
+            $peptideName = preg_replace('/(?:Skin\s*glow|Skinglow)/i', '', $peptideName);
+            $peptideName = trim($peptideName);
+            // If peptide name becomes empty after cleaning, use default
+            if (empty($peptideName)) {
+                $peptideName = 'GHK-Cu';
+            }
+        }
+
         // Build description with CSV data
         $description = "Category: {$info['category']}\n\n";
-        $description .= "{$name} ({$info['peptide']})\n\n";
+        $description .= "{$name} ({$peptideName})\n\n";
         $description .= "Each pen contains: {$info['strength']}\n\n";
 
         // Add benefits from CSV if available
