@@ -10,6 +10,7 @@ use App\Notifications\NewContactMessageNotification;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\ValidationException;
 
 class WebsiteService
@@ -22,13 +23,42 @@ class WebsiteService
             "phone" => "required|string",
             "subject" => "required|string",
             "message" => "required|string",
+            "recaptcha_token" => "required|string",
         ]);
 
         if ($validator->fails()) {
             throw new ValidationException($validator);
         }
 
-        $message = ContactUsMessage::create($validator->validated());
+        // Verify reCAPTCHA token
+        $recaptchaSecret = env('RECAPTCHA_SECRET_KEY');
+        if (!$recaptchaSecret) {
+            Log::warning('reCAPTCHA secret key not configured');
+            throw new \Exception('reCAPTCHA verification is not configured');
+        }
+
+        $recaptchaResponse = Http::asForm()->post('https://www.google.com/recaptcha/api/siteverify', [
+            'secret' => $recaptchaSecret,
+            'response' => $data['recaptcha_token'],
+            'remoteip' => request()->ip(),
+        ]);
+
+        $recaptchaResult = $recaptchaResponse->json();
+
+        if (!$recaptchaResult['success'] || ($recaptchaResult['score'] ?? 0) < 0.5) {
+            Log::warning('reCAPTCHA verification failed', [
+                'result' => $recaptchaResult,
+                'ip' => request()->ip(),
+            ]);
+            throw new ValidationException(
+                Validator::make([], []),
+                ['recaptcha_token' => ['reCAPTCHA verification failed. Please try again.']]
+            );
+        }
+
+        // Remove recaptcha_token from data before saving
+        unset($data['recaptcha_token']);
+        $message = ContactUsMessage::create($data);
 
         $admins = User::whereIn("role", AppConstants::ADMIN_ROLES)
             ->where("team", AppConstants::TEAM_ZENOVATE)
