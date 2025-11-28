@@ -40,11 +40,11 @@ class SignService
             'submitters' => [
                 [
                     'name' => 'zenovate_admin',
-                    'email' => env("ZENOVATE_ADMIN_EMAIL")
+                    'email' => config('emails.zenovate_admin')
                 ],
                 // [
                 //     'name' => 'skycare_admin',
-                //     'email' => env("SKYCARE_ADMIN_EMAIL")
+                //     'email' => config('emails.skycare_admin')
                 // ]
             ],
         ]);
@@ -190,9 +190,6 @@ class SignService
             return [
                 "message" => "Order request approved and sent for signing successfully!"
             ];
-
         });
-
     }
-
 }

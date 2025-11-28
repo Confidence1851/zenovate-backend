@@ -146,6 +146,19 @@ class PeptideProductSeeder extends Seeder
             // Build subtitle from peptide name
             $subtitle = $peptide ?: null;
 
+            // Clean up subtitle for Zenluma - remove "Skinglow" or "Skin glow" if present
+            if ($name === 'Zenluma' && $subtitle) {
+                // Remove "Skinglow", "Skin glow", "Skin Glow" and any parentheses/brackets containing them
+                $subtitle = preg_replace('/\s*\([^)]*(?:Skin\s*glow|Skinglow)[^)]*\)/i', '', $subtitle);
+                $subtitle = preg_replace('/\s*\[[^\]]*(?:Skin\s*glow|Skinglow)[^\]]*\]/i', '', $subtitle);
+                $subtitle = preg_replace('/\s*(?:Skin\s*glow|Skinglow)/i', '', $subtitle);
+                $subtitle = trim($subtitle);
+                // If subtitle becomes empty after cleaning, use default
+                if (empty($subtitle)) {
+                    $subtitle = 'GHK-Cu';
+                }
+            }
+
             // Build price array
             // For peptides, use ONLY column G: Pricing for Individual Clients (USD)
             // Simple pricing (no frequency/unit) - just one price

@@ -27,11 +27,13 @@
                     </div>
 
                     <div class="mt-3 alert alert-info">
-                        Upon approval, an email will be sent to <b>{{ env("ZENOVATE_ADMIN_EMAIL") }}</b> to sign order.
+                        Upon approval, an email will be sent to <b>{{ config('emails.zenovate_admin') }}</b> to sign
+                        order.
                         {{-- After signing, the document will also be forwarded to <b>Skycare</b> to confirm and sign. --}}
                     </div>
-                     <div class="mt-3 alert alert-warning">
-                        If you decide to deny this request, an email will be sent to the customer along with your comment. <b class="text-danger">Also note that a refund will be made to the customer!</b>
+                    <div class="mt-3 alert alert-warning">
+                        If you decide to deny this request, an email will be sent to the customer along with your
+                        comment. <b class="text-danger">Also note that a refund will be made to the customer!</b>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -43,14 +45,14 @@
     </div>
 </div>
 
-@push("scripts")
-<script>
-        $("#status_input").on("change" , function(){
+@push('scripts')
+    <script>
+        $("#status_input").on("change", function() {
             const val = $(this).val();
-            if(val == "Yes"){
+            if (val == "Yes") {
                 $("#comment_input").removeAttr("required");
-            }else{
-                $("#comment_input").attr("required" , true);
+            } else {
+                $("#comment_input").attr("required", true);
             }
         });
         $("#status_input").trigger("change");

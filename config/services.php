@@ -44,6 +44,8 @@ return [
         'base_id' => env('AIRTABLE_BASE_ID'),
     ],
 
-
+    'recaptcha' => [
+        'secret' => env('RECAPTCHA_SECRET_KEY'),
+    ],
 
 ];

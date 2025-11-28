@@ -31,7 +31,7 @@ class WebsiteService
         }
 
         // Verify reCAPTCHA token
-        $recaptchaSecret = env('RECAPTCHA_SECRET_KEY');
+        $recaptchaSecret = config('services.recaptcha.secret') ?? env('RECAPTCHA_SECRET_KEY');
         if (!$recaptchaSecret) {
             Log::warning('reCAPTCHA secret key not configured');
             throw new \Exception('reCAPTCHA verification is not configured');
@@ -60,11 +60,19 @@ class WebsiteService
         unset($data['recaptcha_token']);
         $message = ContactUsMessage::create($data);
 
+        // Send notification to admin users
         $admins = User::whereIn("role", AppConstants::ADMIN_ROLES)
             ->where("team", AppConstants::TEAM_ZENOVATE)
             ->get();
         Log::info('Admins:', $admins->toArray());
         Notification::send($admins, new NewContactMessageNotification($message));
+
+        // Also send notification to contact email from config
+        $contactEmail = config('emails.contact');
+        if ($contactEmail) {
+            Notification::route('mail', $contactEmail)
+                ->notify(new NewContactMessageNotification($message));
+        }
     }
 
 
