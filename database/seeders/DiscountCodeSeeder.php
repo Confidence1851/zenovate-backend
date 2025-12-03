@@ -36,7 +36,16 @@ class DiscountCodeSeeder extends Seeder
                 'usage_limit' => 0, // Unlimited
             ],
             [
-                'code' => '20JF',
+                'code' => 'Jens20',
+                'type' => 'percentage',
+                'value' => 20.00,
+                'status' => 'Active',
+                'start_date' => null,
+                'end_date' => null, // No expiry
+                'usage_limit' => 0, // Unlimited
+            ],
+            [
+                'code' => '20NF',
                 'type' => 'percentage',
                 'value' => 20.00,
                 'status' => 'Active',
