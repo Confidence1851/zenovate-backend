@@ -170,6 +170,26 @@
                                     No payment records at the moment
                                 </p>
                             @else
+                                @php
+                                    $orderType = $dto->payment->order_type ?? 'regular';
+                                    $isOrderSheet = $orderType === 'order_sheet';
+                                @endphp
+                                <p>
+                                    <b>Order Type:</b>
+                                    @if ($isOrderSheet)
+                                        <span class="badge bg-info text-white">Order Sheet</span>
+                                    @else
+                                        <span class="badge bg-secondary text-white">Regular Checkout</span>
+                                    @endif
+                                </p>
+                                <p>
+                                    <b>Checkout Type:</b>
+                                    @if ($session->isDirectCheckout())
+                                        <span class="badge bg-primary text-white">Direct Checkout</span>
+                                    @else
+                                        <span class="badge bg-secondary text-white">Form-Based</span>
+                                    @endif
+                                </p>
                                 <p>
                                     <b>Currency:</b> {{ strtoupper($dto->payment->currency) }}
                                 </p>
