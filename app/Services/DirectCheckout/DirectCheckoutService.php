@@ -177,15 +177,31 @@ class DirectCheckoutService
             throw new \Exception('Checkout session expired or not found');
         }
 
-        // Apply discount using existing DiscountCodeService
-        $discountService = new DiscountCodeService();
-        $checkoutData = $discountService->applyDiscount($checkoutData, $discountCode);
+        // Calculate subtotal + shipping (before discount)
+        $subtotalWithShipping = $checkoutData['sub_total'] + $checkoutData['shipping_fee'];
 
-        // Recalculate tax on discounted subtotal and update total
-        $discountedSubtotal = $checkoutData['sub_total'] - $checkoutData['discount_amount'];
-        $taxAmount = $discountedSubtotal * ($checkoutData['tax_rate'] / 100);
+        // Apply discount using DiscountCodeService (on subtotal + shipping)
+        $discountService = new DiscountCodeService();
+        $discountModel = $discountService->validate($discountCode);
+        if (!$discountModel) {
+            throw new \Exception('Invalid or expired discount code');
+        }
+
+        // Calculate discount on subtotal + shipping
+        $discountAmount = $discountService->calculateDiscount($subtotalWithShipping, $discountModel);
+
+        // Increment usage count
+        $discountModel->incrementUsage();
+
+        // Apply discount to subtotal + shipping
+        $discountedAmount = max(0, $subtotalWithShipping - $discountAmount);
+
+        // Recalculate tax on discounted amount
+        $taxAmount = $discountedAmount * ($checkoutData['tax_rate'] / 100);
         $checkoutData['tax_amount'] = round($taxAmount, 2);
-        $checkoutData['total'] = round($discountedSubtotal + $checkoutData['shipping_fee'] + $taxAmount, 2);
+        $checkoutData['discount_code'] = $discountModel->code;
+        $checkoutData['discount_amount'] = round($discountAmount, 2);
+        $checkoutData['total'] = round($discountedAmount + $taxAmount, 2);
 
         // Update cache
         cache()->put("direct_checkout_{$checkoutId}", $checkoutData, now()->addMinutes(30));
@@ -360,7 +376,16 @@ class DirectCheckoutService
             ];
         }
 
-        // Apply discount if provided
+        // Calculate shipping using order-sheet rules
+        $shippingFee = $this->calculateOrderSheetShippingFee(
+            $subTotal,
+            $defaultShippingFee
+        );
+
+        // Calculate subtotal + shipping (before discount)
+        $subtotalWithShipping = $subTotal + $shippingFee;
+
+        // Apply discount if provided (to subtotal + shipping)
         $discountAmount = 0;
         if ($discountCode) {
             $discountService = new DiscountCodeService();
@@ -368,23 +393,18 @@ class DirectCheckoutService
             if (!$discountModel) {
                 throw new \Exception('Invalid discount code');
             }
-            $discountAmount = $discountService->calculateDiscount($subTotal, $discountModel);
+            // Calculate discount on subtotal + shipping
+            $discountAmount = $discountService->calculateDiscount($subtotalWithShipping, $discountModel);
         }
 
-        // Calculate shipping using order-sheet rules
-        $shippingFee = $this->calculateOrderSheetShippingFee(
-            $subTotal,
-            $defaultShippingFee
-        );
+        // Apply discount to subtotal + shipping
+        $discountedAmount = max(0, $subtotalWithShipping - $discountAmount);
 
-        // Apply discount to subtotal first (Stripe's standard approach)
-        $discountedSubtotal = max(0, $subTotal - $discountAmount);
-
-        // Calculate tax on discounted amount (matching Stripe's standard behavior)
+        // Calculate tax on discounted amount
         $averageTaxRate = $subTotal > 0 ? ($totalTax / $subTotal) * 100 : 0;
-        $taxAmount = $discountedSubtotal * ($averageTaxRate / 100);
+        $taxAmount = $discountedAmount * ($averageTaxRate / 100);
 
-        $total = $discountedSubtotal + $taxAmount + $shippingFee;
+        $total = $discountedAmount + $taxAmount;
 
         // Create form session for order sheet checkout
         $formSession = $this->createOrderSheetFormSession(

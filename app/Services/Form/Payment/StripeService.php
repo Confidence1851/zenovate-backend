@@ -132,6 +132,8 @@ class StripeService
             'payment_method_types' => ['card'],
             'mode' => 'payment',
         ];
+
+        // Default shipping info (will be modified for order sheets with discounts)
         $shipping_info = [
             'shipping_address_collection' => ['allowed_countries' => ["CA", "US"]],
             'shipping_options' => [
@@ -194,14 +196,42 @@ class StripeService
             $line_items[] = $line_item;
         }
 
-        $checkout_data["line_items"] = $line_items;
-
         // Apply discount using Stripe's native coupon system
         $discountAmount = isset($this->payment->discount_amount) && $this->payment->discount_amount > 0
             ? (float) $this->payment->discount_amount
             : 0;
 
         $discountCode = $this->payment->discount_code ?? null;
+        $isOrderSheet = $this->payment->order_type === 'order_sheet';
+
+        // For order sheets with discounts, add shipping as a line item so discount applies to it
+        if ($isOrderSheet && $discountAmount > 0 && $discountCode && $this->shippingFee > 0) {
+            // Add shipping as a line item so the coupon applies to it
+            $shipping_line_item = [
+                'price_data' => [
+                    'currency' => $this->currency,
+                    'unit_amount' => (int) round($this->shippingFee * 100),
+                    'product_data' => [
+                        'name' => 'Shipping (1-7 business days)',
+                    ]
+                ],
+                'quantity' => 1,
+            ];
+
+            // Apply tax rate to shipping line item
+            if ($taxRateId) {
+                $shipping_line_item['tax_rates'] = [$taxRateId];
+            }
+
+            $line_items[] = $shipping_line_item;
+
+            // Don't use shipping_options when shipping is a line item
+            $shipping_info = [
+                'shipping_address_collection' => ['allowed_countries' => ["CA", "US"]],
+            ];
+        }
+
+        $checkout_data["line_items"] = $line_items;
 
         if ($discountAmount > 0 && $discountCode) {
             // Get the discount code model to create Stripe coupon

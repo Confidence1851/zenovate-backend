@@ -32,8 +32,10 @@
                         </div>
                         <div class="card-body">
                             <p>
-                                <b>Session:</b> <a href="{{ route("dashboard.form-sessions.show" , $payment->form_session_id) }}" target="_blank"
-                                    rel="noopener noreferrer">{{ $payment->formSession->reference }}  - View Details</a>
+                                <b>Session:</b> <a
+                                    href="{{ route('dashboard.form-sessions.show', $payment->form_session_id) }}"
+                                    target="_blank" rel="noopener noreferrer">{{ $payment->formSession->reference }} - View
+                                    Details</a>
                             </p>
                             <p>
                                 <b>Reference:</b> {{ $payment->reference ?? 'N/A' }}
