@@ -7,7 +7,7 @@ use App\Http\Controllers\Api\FormController;
 use App\Http\Controllers\Api\WebsiteController;
 use Illuminate\Support\Facades\Route;
 
-Route:: as("api.")->group(function () {
+Route::as("api.")->group(function () {
 
     Route::get('/get-file/{hash}', [WebsiteController::class, 'getFile'])->name("get-file");
 
@@ -32,9 +32,10 @@ Route:: as("api.")->group(function () {
         Route::post('/newsletter-subscribe', [WebsiteController::class, 'newsletterSubscriber']);
     });
 
-    Route:: as("form.")->prefix("form")->group(function () {
+    Route::as("form.")->prefix("form")->group(function () {
         Route::get('/products', [FormController::class, 'productIndex'])->name('products.index');
         Route::get('/products/by-categories', [FormController::class, 'productsByCategories'])->name('products.by-categories');
+        Route::get('/products/order-sheet', [FormController::class, 'orderSheetProducts'])->name('products.order-sheet');
         Route::get('/products/{id}', [FormController::class, 'productInfo'])->name('products.info');
         Route::get('/session/info/{id}', [FormController::class, 'info'])->name('session.info');
         Route::post('/session/recreate/{id}', [FormController::class, 'recreate'])->name('session.recreate')->middleware("auth:sanctum");
@@ -50,10 +51,13 @@ Route:: as("api.")->group(function () {
         Route::get('/{slug}/products', [CategoryController::class, 'products'])->name('categories.products');
     });
 
-    Route::prefix('direct-checkout')->group(function () {
-        Route::post('/init', [\App\Http\Controllers\Api\DirectCheckoutController::class, 'init'])->name('direct-checkout.init');
-        Route::post('/apply-discount', [\App\Http\Controllers\Api\DirectCheckoutController::class, 'applyDiscount'])->name('direct-checkout.apply-discount');
-        Route::post('/process', [\App\Http\Controllers\Api\DirectCheckoutController::class, 'process'])->name('direct-checkout.process');
-        Route::get('/product-from-payment', [\App\Http\Controllers\Api\DirectCheckoutController::class, 'getProductFromPayment'])->name('direct-checkout.product-from-payment');
-    });
+    Route::prefix('direct-checkout')
+        ->controller(\App\Http\Controllers\Api\DirectCheckoutController::class)
+        ->group(function () {
+            Route::post('/init', 'init')->name('direct-checkout.init');
+            Route::post('/order-sheet/init', 'orderSheetInit')->name('direct-checkout.order-sheet.init');
+            Route::post('/apply-discount', 'applyDiscount')->name('direct-checkout.apply-discount');
+            Route::post('/process', 'process')->name('direct-checkout.process');
+            Route::get('/checkout/info', 'checkoutInfo')->name('direct-checkout.checkout-info');
+        });
 });

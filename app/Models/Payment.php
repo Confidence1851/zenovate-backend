@@ -49,5 +49,21 @@ class Payment extends Model
         return $this->currency ."".number_format($this->$key,2);
     }
 
+    /**
+     * Scope a query to only include order sheet payments.
+     */
+    public function scopeOrderSheet($query)
+    {
+        return $query->where('order_type', 'order_sheet');
+    }
+
+    /**
+     * Scope a query to only include regular payments.
+     */
+    public function scopeRegular($query)
+    {
+        return $query->where('order_type', 'regular');
+    }
+
 }
 

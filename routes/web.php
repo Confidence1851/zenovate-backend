@@ -17,6 +17,9 @@ Route::get('/website', function () {
 
 Route::as("dashboard.")->prefix("dashboard")->middleware(["auth", "admin"])->group(function () {
     Route::get('/', [HomeController::class, 'index'])->name('index');
+    Route::post('form-sessions/{id}/mark-completed', [FormSessionController::class, 'markCompleted'])->name('form-sessions.mark-completed');
+    Route::post('form-sessions/{id}/mark-unfulfilled', [FormSessionController::class, 'markUnfulfilled'])->name('form-sessions.mark-unfulfilled');
+    Route::post('form-sessions/{id}/mark-refunded', [FormSessionController::class, 'markRefunded'])->name('form-sessions.mark-refunded');
     Route::resource('form-sessions', FormSessionController::class);
     Route::resource('admins', AdminController::class);
     // Route::resource('users', UserController::class)->only('index');

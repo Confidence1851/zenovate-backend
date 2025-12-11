@@ -21,6 +21,41 @@
                             data-bs-target="#review_order">Review</a>
                         @include('admin.pages.sessions.fragments.modals.review', ['key' => 'review_order'])
                     @endif
+                    @if ($session->isDirectCheckout() && $session->completedPayment)
+                        @php
+                            $canModify = !in_array($session->status, [
+                                \App\Helpers\StatusConstants::COMPLETED,
+                                \App\Helpers\StatusConstants::CANCELLED,
+                                \App\Helpers\StatusConstants::REFUNDED,
+                            ]);
+                        @endphp
+                        @if ($canModify)
+                            <button class="btn btn-sm btn-success text-white me-2" data-bs-toggle="modal"
+                                data-bs-target="#mark_completed_modal">
+                                Mark as Completed
+                            </button>
+                            <button class="btn btn-sm btn-warning text-white me-2" data-bs-toggle="modal"
+                                data-bs-target="#mark_unfulfilled_modal">
+                                Mark as Unfulfilled
+                            </button>
+                            <button class="btn btn-sm btn-danger text-white me-2" data-bs-toggle="modal"
+                                data-bs-target="#mark_refunded_modal">
+                                Refund Order
+                            </button>
+                            @include('admin.pages.sessions.fragments.modals.completed', [
+                                'key' => 'mark_completed_modal',
+                                'session' => $session,
+                            ])
+                            @include('admin.pages.sessions.fragments.modals.unfulfilled', [
+                                'key' => 'mark_unfulfilled_modal',
+                                'session' => $session,
+                            ])
+                            @include('admin.pages.sessions.fragments.modals.refund', [
+                                'key' => 'mark_refunded_modal',
+                                'session' => $session,
+                            ])
+                        @endif
+                    @endif
                     <a class="btn btn-sm btn-primary" href="{{ url()->previous() ?? 'N/A' }}"><i
                             class="arrow-left align-bottom"></i>Back</a>
 
@@ -99,6 +134,35 @@
                             </p>
                             <br>
                             <hr>
+                            @if ($session->isDirectCheckout())
+                                <h6>Direct Booking Additional Information</h6>
+                                <hr>
+                                @php
+                                    $raw = $session->metadata['raw'] ?? [];
+                                @endphp
+                                @if (!empty($raw['account_number']))
+                                    <p>
+                                        <b>Account Number:</b> {{ $raw['account_number'] }}
+                                    </p>
+                                @endif
+                                @if (!empty($raw['location']))
+                                    <p>
+                                        <b>Location:</b> {{ $raw['location'] }}
+                                    </p>
+                                @endif
+                                @if (!empty($raw['shipping_address']))
+                                    <p>
+                                        <b>Shipping Address:</b> {{ $raw['shipping_address'] }}
+                                    </p>
+                                @endif
+                                @if (!empty($raw['additional_information']))
+                                    <p>
+                                        <b>Additional Information:</b> {{ $raw['additional_information'] }}
+                                    </p>
+                                @endif
+                                <br>
+                                <hr>
+                            @endif
                             <h6>Payment Details</h6>
                             <hr>
                             @if (empty($dto->payment))
@@ -163,8 +227,8 @@
                                 <tbody>
                                     @forelse ($dto->paymentProducts() as $paymentProduct)
                                         <tr>
-                                            <td>{{ $paymentProduct->product->name }}</td>
-                                            <td>1</td>
+                                            <td>{{ $paymentProduct->product->name ?? 'Unknown Product' }}</td>
+                                            <td>{{ $paymentProduct->quantity ?? 1 }}</td>
                                             <td>{{ $paymentProduct->getPrice() }}</td>
                                         </tr>
                                     @empty

@@ -149,16 +149,17 @@ class StripeService
             ],
         ];
 
-        // Create Stripe Tax Rate if tax is applicable
+        // Create Stripe Tax Rate if tax is applicable (standard Stripe approach)
         $taxRateId = null;
         if (isset($this->taxRate) && $this->taxRate > 0) {
             try {
+                $taxLabel = $this->payment->order_type === 'order_sheet' ? 'Tax' : 'HST';
                 $tax = $this->stripeClient->taxRates->create([
-                    'display_name' => 'HST',
+                    'display_name' => $taxLabel,
                     'inclusive' => false, // Tax is added on top, not included in price
-                    'percentage' => $this->taxRate, // Tax rate as percentage (e.g., 5 for 5%)
-                    'country' => $this->country ?? 'CA',
-                    'description' => 'HST',
+                    'percentage' => $this->taxRate, // Tax rate as percentage (e.g., 13 for 13%)
+                    'country' => $this->country ?? 'US',
+                    'description' => $taxLabel,
                 ]);
                 $taxRateId = $tax->id;
             } catch (\Exception $e) {
@@ -171,6 +172,7 @@ class StripeService
         // Show products at their original prices
         foreach ($this->products as $product) {
             $originalAmount = $product->selected_price["value"];
+            $quantity = isset($product->quantity) ? (int) $product->quantity : 1;
 
             $line_item = [
                 'price_data' => [
@@ -181,10 +183,10 @@ class StripeService
                         // 'images' => [$image],
                     ]
                 ],
-                'quantity' => 1,
+                'quantity' => $quantity,
             ];
 
-            // Apply tax rate to line item if tax is applicable
+            // Apply tax rate to line item (Stripe will calculate tax on discounted amount)
             if ($taxRateId) {
                 $line_item['tax_rates'] = [$taxRateId];
             }
@@ -293,6 +295,11 @@ class StripeService
                 } catch (\Throwable $th) {
                     //throw $th;
                 }
+
+                // Send emails for successful order sheet payments
+                if ($this->payment->order_type === 'order_sheet') {
+                    $this->sendOrderSheetEmails();
+                }
             } else {
                 $this->payment->update([
                     "status" => StatusConstants::FAILED
@@ -359,6 +366,49 @@ class StripeService
 
             $coupon = $this->stripeClient->coupons->create($couponData);
             return $coupon->id;
+        }
+    }
+
+    /**
+     * Send emails for successful order sheet payments
+     */
+    private function sendOrderSheetEmails(): void
+    {
+        try {
+            $payment = $this->payment->load(['paymentProducts.product', 'formSession']);
+            $formSession = $payment->formSession;
+
+            if (!$formSession) {
+                return;
+            }
+
+            $metadata = $formSession->metadata['raw'] ?? [];
+            $customerEmail = $metadata['email'] ?? $payment->metadata['email'] ?? null;
+            $customerName = ($metadata['firstName'] ?? '') . ' ' . ($metadata['lastName'] ?? '');
+
+            if ($customerEmail) {
+                // Send customer confirmation email
+                \Illuminate\Support\Facades\Notification::route('mail', $customerEmail)
+                    ->notify(new \App\Notifications\OrderSheet\Customer\OrderConfirmedNotification($payment));
+            }
+
+            // Send admin notification
+            $admins = \App\Models\User::whereIn('role', \App\Helpers\AppConstants::ADMIN_ROLES)
+                ->where('team', \App\Helpers\AppConstants::TEAM_ZENOVATE)
+                ->get();
+
+            if ($admins->isNotEmpty()) {
+                \Illuminate\Support\Facades\Notification::send(
+                    $admins,
+                    new \App\Notifications\OrderSheet\Admin\NewOrderNotification($payment)
+                );
+            }
+        } catch (\Throwable $th) {
+            // Log error but don't fail payment processing
+            Log::error('Failed to send order sheet emails', [
+                'payment_id' => $this->payment->id,
+                'error' => $th->getMessage(),
+            ]);
         }
     }
 }

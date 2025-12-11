@@ -125,6 +125,29 @@ class FormController extends Controller
         }
     }
 
+    function orderSheetProducts()
+    {
+        try {
+            return ApiHelper::validResponse(
+                'Order sheet products retrieved successfully',
+                ProductResource::collection(
+                    Product::where('status', StatusConstants::ACTIVE)
+                        ->where('enabled_for_order_sheet', true)
+                        ->with('category')
+                        ->orderBy('name', 'asc')
+                        ->get()
+                )
+            );
+        } catch (GeneralException $e) {
+            return ApiHelper::problemResponse(
+                $e->getMessage(),
+                ApiConstants::BAD_REQ_ERR_CODE
+            );
+        } catch (Throwable $e) {
+            return $this->throwableError($e);
+        }
+    }
+
     function productsByCategories()
     {
         try {

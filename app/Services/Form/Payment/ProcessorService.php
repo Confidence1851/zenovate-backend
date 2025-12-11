@@ -16,39 +16,55 @@ class ProcessorService
         $service = new StripeService;
 
         $metadata = $session->metadata["raw"];
+        $isOrderSheet = ($data["order_type"] ?? null) === "order_sheet";
+        $customerInfo = $data["customer_info"] ?? null;
+
+        // Order sheet checkouts always use USD
+        $currency = $isOrderSheet ? 'USD' : ($data["currency"] ?? 'USD');
+
         $payment = Payment::create([
             "form_session_id" => $session->id,
             "reference" => self::generateReference(),
             "sub_total" => $data["sub_total"],
             "gateway" => "Stripe",
-            "currency" => $data["currency"],
+            "currency" => $currency,
             "total" => $data["total"],
             "shipping_fee" => $data["shipping_fee"],
-            "address" => $metadata["streetAddress"] ?? null,
-            "postal_code" => $metadata["postalZipCode"] ?? null,
-            "city" => $metadata["city"] ?? null,
-            "country" => $metadata["country"] ?? null,
-            "province" => $metadata["stateProvince"] ?? null,
-            "phone" => $metadata["phoneNumber"] ?? null,
+            "address" => $isOrderSheet ? ($customerInfo["shipping_address"] ?? $customerInfo["location"] ?? null) : ($metadata["streetAddress"] ?? null),
+            "postal_code" => $isOrderSheet ? null : ($metadata["postalZipCode"] ?? null),
+            "city" => $isOrderSheet ? null : ($metadata["city"] ?? null),
+            "country" => $isOrderSheet ? null : ($metadata["country"] ?? null),
+            "province" => $isOrderSheet ? null : ($metadata["stateProvince"] ?? null),
+            "phone" => $isOrderSheet ? ($customerInfo["phone"] ?? null) : ($metadata["phoneNumber"] ?? null),
             "status" => StatusConstants::PENDING,
             "discount_code" => $data["discount_code"] ?? null,
             "discount_amount" => $data["discount_amount"] ?? null,
+            "order_type" => $isOrderSheet ? "order_sheet" : "regular",
+            "account_number" => $isOrderSheet ? ($customerInfo["account_number"] ?? null) : null,
+            "location" => $isOrderSheet ? ($customerInfo["location"] ?? null) : null,
+            "shipping_address" => $isOrderSheet ? ($customerInfo["shipping_address"] ?? null) : null,
+            "additional_information" => $isOrderSheet ? ($customerInfo["additional_information"] ?? null) : null,
         ]);
 
         foreach ($data["products"] as $product) {
+            $quantity = isset($product->quantity) ? (int) $product->quantity : 1;
             PaymentProduct::firstOrCreate([
                 "payment_id" => $payment->id,
                 "product_id" => $product->id,
             ], [
-                "price" => $product->selected_price
+                "price" => $product->selected_price,
+                "quantity" => $quantity,
             ]);
         }
 
         // Ensure payment is saved and refreshed before passing to StripeService
         $payment->refresh();
 
-        $service->setCurrency($data["currency"])
-            ->setCountry($data["country_code"])
+        // Order sheet checkouts always use USD and US country code
+        $countryCode = $isOrderSheet ? 'US' : ($data["country_code"] ?? 'US');
+
+        $service->setCurrency($currency)
+            ->setCountry($countryCode)
             ->setDescription("Zenovate")
             ->setShippingFee($payment["shipping_fee"])
             ->setProducts($data["products"])

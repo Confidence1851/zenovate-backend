@@ -33,6 +33,7 @@ class ProductResource extends JsonResource
             "requires_patient_clinic_selection" => (bool) ($this->requires_patient_clinic_selection ?? false),
             "shipping_fee" => $this->shipping_fee,
             "tax_rate" => $this->tax_rate,
+            "enabled_for_order_sheet" => (bool) ($this->enabled_for_order_sheet ?? false),
             "category" => new ProductCategoryResource($this->whenLoaded('category')),
         ];
     }
