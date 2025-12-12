@@ -4,16 +4,18 @@
  * Normalize URL to fix common formatting issues
  * Fixes URLs like "http://127.0.0.13000" to "http://127.0.0.1:3000"
  */
-function normalizeFrontendUrl($url)
-{
-    if (empty($url)) {
+if (!function_exists('normalizeFrontendUrl')) {
+    function normalizeFrontendUrl($url)
+    {
+        if (empty($url)) {
+            return $url;
+        }
+
+        // Fix missing colon in URLs like "http://127.0.0.13000" -> "http://127.0.0.1:3000"
+        $url = preg_replace('/^((?:https?:\/\/)?127\.0\.0\.1)(\d+)$/', '$1:$2', $url);
+
         return $url;
     }
-
-    // Fix missing colon in URLs like "http://127.0.0.13000" -> "http://127.0.0.1:3000"
-    $url = preg_replace('/^((?:https?:\/\/)?127\.0\.0\.1)(\d+)$/', '$1:$2', $url);
-
-    return $url;
 }
 
 return [
