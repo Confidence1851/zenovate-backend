@@ -123,4 +123,28 @@ return [
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Sudo Email
+    |--------------------------------------------------------------------------
+    |
+    | This email address is used for super admin access to sensitive features
+    | like Horizon dashboard.
+    |
+    */
+
+    'sudo_email' => env('SUDO_EMAIL'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Order Sheet Email
+    |--------------------------------------------------------------------------
+    |
+    | This email address receives order sheet notifications for new orders,
+    | completions, refunds, and unfulfilled orders.
+    |
+    */
+
+    'order_sheet_email' => env('ORDER_SHEET_EMAIL'),
+
 ];

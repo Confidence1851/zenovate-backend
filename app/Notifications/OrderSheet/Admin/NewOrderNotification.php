@@ -3,6 +3,7 @@
 namespace App\Notifications\OrderSheet\Admin;
 
 use App\Models\Payment;
+use App\Services\OrderSheet\OrderSummaryPdfService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
@@ -26,10 +27,14 @@ class NewOrderNotification extends Notification implements ShouldQueue
     public function toMail(object $notifiable): MailMessage
     {
         try {
+            $adminEmail = method_exists($notifiable, 'getEmailForNotifications')
+                ? $notifiable->getEmailForNotifications()
+                : (property_exists($notifiable, 'email') ? $notifiable->email : 'admin@zenovate.health');
+
             Log::info('Admin OrderSheet Notification: Starting', [
                 'payment_id' => $this->payment->id,
                 'payment_reference' => $this->payment->reference,
-                'admin_email' => $notifiable->email,
+                'admin_email' => $adminEmail,
             ]);
 
             $formSession = $this->payment->formSession;
@@ -44,7 +49,7 @@ class NewOrderNotification extends Notification implements ShouldQueue
 
             $message = (new MailMessage)
                 ->subject('New Order Sheet Payment #' . $this->payment->reference)
-                ->greeting('Hi ' . ($notifiable->first_name ?? 'Admin') . ',');
+                ->greeting('Hi Admin,');
 
             $message->line('A new order sheet payment has been received and confirmed.');
 
@@ -153,9 +158,33 @@ class NewOrderNotification extends Notification implements ShouldQueue
                 // Route doesn't exist, skip action button
             }
 
+            // Attach PDF order summary
+            try {
+                $pdfService = new OrderSummaryPdfService();
+                $pdfContent = $pdfService->generate($this->payment);
+                $message->attachData($pdfContent, 'order-summary-' . $this->payment->reference . '.pdf', [
+                    'mime' => 'application/pdf',
+                ]);
+                $message->line('**Please find the detailed order summary attached as a PDF.**');
+                Log::info('Admin OrderSheet Notification: PDF attached successfully', [
+                    'payment_id' => $this->payment->id,
+                ]);
+            } catch (\Exception $e) {
+                Log::error('Admin OrderSheet Notification: Failed to generate PDF', [
+                    'payment_id' => $this->payment->id,
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString(),
+                ]);
+                // Continue without PDF attachment if generation fails
+            }
+
+            $adminEmail = method_exists($notifiable, 'getEmailForNotifications')
+                ? $notifiable->getEmailForNotifications()
+                : (property_exists($notifiable, 'email') ? $notifiable->email : 'admin@zenovate.health');
+
             Log::info('Admin OrderSheet Notification: Completed successfully', [
                 'payment_id' => $this->payment->id,
-                'admin_email' => $notifiable->email,
+                'admin_email' => $adminEmail,
             ]);
 
             return $message;

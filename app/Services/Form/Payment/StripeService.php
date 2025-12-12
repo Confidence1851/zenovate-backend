@@ -422,7 +422,14 @@ class StripeService
                     ->notify(new \App\Notifications\OrderSheet\Customer\OrderConfirmedNotification($payment));
             }
 
-            // Send admin notification
+            // Send admin notification to configured email
+            $orderSheetEmail = config('app.order_sheet_email');
+            if ($orderSheetEmail) {
+                \Illuminate\Support\Facades\Notification::route('mail', $orderSheetEmail)
+                    ->notify(new \App\Notifications\OrderSheet\Admin\NewOrderNotification($payment));
+            }
+
+            // Also send to admin users (for backward compatibility)
             $admins = \App\Models\User::whereIn('role', \App\Helpers\AppConstants::ADMIN_ROLES)
                 ->where('team', \App\Helpers\AppConstants::TEAM_ZENOVATE)
                 ->get();
