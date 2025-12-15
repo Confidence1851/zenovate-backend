@@ -22,9 +22,13 @@ class StripeService
     public Collection $products;
     public function __construct()
     {
-        $this->stripeClient = new \Stripe\StripeClient(
-            env("STRIPE_SK")
-        );
+        $stripeKey = config('services.stripe.secret');
+
+        if (empty($stripeKey)) {
+            throw new \Exception('Stripe secret key is not configured. Please set STRIPE_SK in your .env file.');
+        }
+
+        $this->stripeClient = new \Stripe\StripeClient($stripeKey);
     }
 
     public function setAmount(float $value)

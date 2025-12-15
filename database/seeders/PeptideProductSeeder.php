@@ -190,21 +190,44 @@ class PeptideProductSeeder extends Seeder
             ];
             $isActive = in_array($name, $activePeptideNames);
 
+            // Map product names to codes
+            $productCodes = [
+                'Zenfit' => 'ZEN01',
+                'Zenergy' => 'ZEN02',
+                'Zenew' => 'ZEN03',
+                'Zenslim' => 'ZEN04',
+                'Zenluma' => 'ZEN05',
+                'ZenCover' => 'ZEN06',
+                'Zenlean' => 'ZEN07',
+                'Zenmune' => 'ZEN08',
+            ];
+            $code = $productCodes[$name] ?? null;
+
+            // Check if product exists to preserve certain fields
+            $existingProduct = Product::where('name', $name)->first();
+
             // Prepare product data for update
             // Note: We don't set airtable_id to null to preserve existing values in production
             $productData = [
                 "name" => $name,
+                "code" => $code,
                 "subtitle" => $subtitle,
                 "description" => $description ?: null,
                 "benefits" => $benefits ?: null,
                 "potency" => $potency ?: null,
                 "status" => $isActive ? StatusConstants::ACTIVE : StatusConstants::INACTIVE,
-                "nav_description" => null,
                 "key_ingredients" => $peptide ?: null,
                 "price" => !empty($price) ? $price : null,
                 "checkout_type" => "direct",
                 "requires_patient_clinic_selection" => true,
             ];
+
+            // Preserve nav_description if product already exists and has a value
+            if ($existingProduct && $existingProduct->nav_description !== null) {
+                $productData["nav_description"] = $existingProduct->nav_description;
+            } else {
+                $productData["nav_description"] = null;
+            }
 
             try {
                 // Use updateOrCreate with proper error handling
