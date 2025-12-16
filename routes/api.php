@@ -59,5 +59,6 @@ Route::as("api.")->group(function () {
             Route::post('/apply-discount', 'applyDiscount')->name('direct-checkout.apply-discount');
             Route::post('/process', 'process')->name('direct-checkout.process');
             Route::get('/checkout/info', 'checkoutInfo')->name('direct-checkout.checkout-info');
+            Route::post('/cart/summary', 'cartSummary')->name('direct-checkout.cart-summary');
         });
 });

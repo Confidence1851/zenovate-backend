@@ -12,7 +12,11 @@ use App\Services\General\DiscountCodeService;
 use App\Services\General\IpAddressService;
 use App\Services\Form\Payment\ProcessorService;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\Validator;
 
 class DirectCheckoutService
 {
@@ -210,10 +214,51 @@ class DirectCheckoutService
     }
 
     /**
+     * Verify reCAPTCHA token
+     */
+    private function verifyRecaptcha(?string $recaptchaToken): void
+    {
+        if (!$recaptchaToken) {
+            throw ValidationException::withMessages([
+                'recaptcha_token' => ['reCAPTCHA token is required']
+            ]);
+        }
+
+        $recaptchaSecret = config('services.recaptcha.secret') ?? env('RECAPTCHA_SECRET_KEY');
+        if (!$recaptchaSecret) {
+            Log::warning('reCAPTCHA secret key not configured');
+            throw new \Exception('reCAPTCHA verification is not configured');
+        }
+
+        $recaptchaResponse = Http::asForm()->post('https://www.google.com/recaptcha/api/siteverify', [
+            'secret' => $recaptchaSecret,
+            'response' => $recaptchaToken,
+            'remoteip' => request()->ip(),
+        ]);
+
+        $recaptchaResult = $recaptchaResponse->json();
+
+        if (!$recaptchaResult['success'] || ($recaptchaResult['score'] ?? 0) < 0.5) {
+            Log::warning('reCAPTCHA verification failed', [
+                'result' => $recaptchaResult,
+                'ip' => request()->ip(),
+            ]);
+            throw ValidationException::withMessages([
+                'recaptcha_token' => ['reCAPTCHA verification failed. Please try again.']
+            ]);
+        }
+    }
+
+    /**
      * Process payment using form session flow
      */
-    public function processPayment(string $checkoutId): array
+    public function processPayment(string $checkoutId, ?string $recaptchaToken = null): array
     {
+        // Verify reCAPTCHA if token is provided
+        if ($recaptchaToken) {
+            $this->verifyRecaptcha($recaptchaToken);
+        }
+
         $checkoutData = cache()->get("direct_checkout_{$checkoutId}");
 
         if (!$checkoutData) {
@@ -517,8 +562,13 @@ class DirectCheckoutService
     /**
      * Process order sheet payment
      */
-    public function processOrderSheetPayment(string $checkoutId): array
+    public function processOrderSheetPayment(string $checkoutId, ?string $recaptchaToken = null): array
     {
+        // Verify reCAPTCHA if token is provided
+        if ($recaptchaToken) {
+            $this->verifyRecaptcha($recaptchaToken);
+        }
+
         $checkoutData = cache()->get("direct_checkout_{$checkoutId}");
 
         if (!$checkoutData) {
@@ -570,5 +620,86 @@ class DirectCheckoutService
         cache()->forget("direct_checkout_{$checkoutId}");
 
         return $result;
+    }
+
+    /**
+     * Calculate cart summary without creating a checkout
+     * Used for displaying cart totals in the sidebar
+     */
+    public function calculateCartSummary(
+        array $products, // [{product_id, price_id, quantity}, ...]
+        ?string $discountCode = null
+    ): array {
+        // Order sheet checkouts always use USD
+        $geoData = [
+            'currency' => 'USD',
+            'country_code' => 'US',
+            'country' => 'United States',
+        ];
+
+        // Load all products and calculate totals
+        $subTotal = 0;
+        $totalTax = 0;
+        $defaultShippingFee = (float) config('checkout.shipping_fee', env('CHECKOUT_SHIPPING_FEE', 60));
+
+        foreach ($products as $productData) {
+            $product = Product::findOrFail($productData['product_id']);
+
+            // Decrypt price_id to get price information
+            $priceData = json_decode(Helper::decrypt($productData['price_id']), true);
+            if (!$priceData || $priceData['product_id'] != $product->id) {
+                throw new \Exception("Invalid price ID for product {$product->id}");
+            }
+
+            $selectedPrice = $priceData['value'];
+            $quantity = (int) ($productData['quantity'] ?? 1);
+
+            $lineTotal = $selectedPrice['value'] * $quantity;
+            $subTotal += $lineTotal;
+
+            // Calculate tax for this product line
+            $taxRate = $this->getTaxRate($product);
+            $totalTax += $lineTotal * ($taxRate / 100);
+        }
+
+        // Calculate shipping using order-sheet rules
+        $shippingFee = $this->calculateOrderSheetShippingFee(
+            $subTotal,
+            $defaultShippingFee
+        );
+
+        // Calculate subtotal + shipping (before discount)
+        $subtotalWithShipping = $subTotal + $shippingFee;
+
+        // Apply discount if provided (to subtotal + shipping)
+        $discountAmount = 0;
+        if ($discountCode) {
+            $discountService = new DiscountCodeService();
+            $discountModel = $discountService->validate($discountCode);
+            if ($discountModel) {
+                // Calculate discount on subtotal + shipping
+                $discountAmount = $discountService->calculateDiscount($subtotalWithShipping, $discountModel);
+            }
+        }
+
+        // Apply discount to subtotal + shipping
+        $discountedAmount = max(0, $subtotalWithShipping - $discountAmount);
+
+        // Calculate tax on discounted amount
+        $averageTaxRate = $subTotal > 0 ? ($totalTax / $subTotal) * 100 : 0;
+        $taxAmount = $discountedAmount * ($averageTaxRate / 100);
+
+        $total = $discountedAmount + $taxAmount;
+
+        return [
+            'sub_total' => round($subTotal, 2),
+            'discount_code' => $discountCode,
+            'discount_amount' => round($discountAmount, 2),
+            'tax_rate' => round($averageTaxRate, 2),
+            'tax_amount' => round($taxAmount, 2),
+            'shipping_fee' => round($shippingFee, 2),
+            'total' => round($total, 2),
+            'currency' => $geoData['currency'],
+        ];
     }
 }

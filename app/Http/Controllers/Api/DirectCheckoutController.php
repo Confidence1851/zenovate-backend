@@ -87,8 +87,8 @@ class DirectCheckoutController extends Controller
                 'last_name' => 'required|string|max:255',
                 'email' => 'required|email|max:255',
                 'phone' => 'required|string|max:255',
-                'account_number' => 'required|string|max:255',
-                'location' => 'required|string|max:255',
+                'account_number' => 'nullable|string|max:255',
+                'location' => 'nullable|string|max:255',
                 'shipping_address' => 'nullable|string',
                 'additional_information' => 'nullable|string',
                 'discount_code' => 'nullable|string',
@@ -101,8 +101,8 @@ class DirectCheckoutController extends Controller
                 $validated['last_name'],
                 $validated['email'],
                 $validated['phone'],
-                $validated['account_number'],
-                $validated['location'],
+                $validated['account_number'] ?? '',
+                $validated['location'] ?? '',
                 $validated['shipping_address'] ?? null,
                 $validated['additional_information'] ?? null,
                 $validated['discount_code'] ?? null
@@ -321,6 +321,7 @@ class DirectCheckoutController extends Controller
         try {
             $validated = $request->validate([
                 'checkout_id' => 'required|string',
+                'recaptcha_token' => 'nullable|string',
             ]);
 
             // Determine checkout type from cache
@@ -328,9 +329,10 @@ class DirectCheckoutController extends Controller
             $isOrderSheet = $cached && ($cached['order_type'] ?? null) === 'order_sheet';
 
             $service = new DirectCheckoutService();
+            $recaptchaToken = $validated['recaptcha_token'] ?? null;
             $result = $isOrderSheet
-                ? $service->processOrderSheetPayment($validated['checkout_id'])
-                : $service->processPayment($validated['checkout_id']);
+                ? $service->processOrderSheetPayment($validated['checkout_id'], $recaptchaToken)
+                : $service->processPayment($validated['checkout_id'], $recaptchaToken);
 
             return ApiHelper::validResponse(
                 'Payment processed successfully',
@@ -379,8 +381,8 @@ class DirectCheckoutController extends Controller
                 'last_name' => 'required|string|max:255',
                 'email' => 'required|email|max:255',
                 'phone' => 'required|string|max:255',
-                'account_number' => 'required|string|max:255',
-                'location' => 'required|string|max:255',
+                'account_number' => 'nullable|string|max:255',
+                'location' => 'nullable|string|max:255',
                 'shipping_address' => 'nullable|string',
                 'additional_information' => 'nullable|string',
                 'discount_code' => 'nullable|string',
@@ -393,8 +395,8 @@ class DirectCheckoutController extends Controller
                 $validated['last_name'],
                 $validated['email'],
                 $validated['phone'],
-                $validated['account_number'],
-                $validated['location'],
+                $validated['account_number'] ?? '',
+                $validated['location'] ?? '',
                 $validated['shipping_address'] ?? null,
                 $validated['additional_information'] ?? null,
                 $validated['discount_code'] ?? null
@@ -592,6 +594,66 @@ class DirectCheckoutController extends Controller
 
             return ApiHelper::problemResponse(
                 'An error occurred while retrieving payment information.',
+                ApiConstants::SERVER_ERR_CODE,
+                $request,
+                $e
+            );
+        }
+    }
+
+    /**
+     * Calculate cart summary without creating a checkout
+     */
+    public function cartSummary(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                'products' => 'required|array|min:1',
+                'products.*.product_id' => 'required|integer|exists:products,id',
+                'products.*.price_id' => 'required|string',
+                'products.*.quantity' => 'required|integer|min:1',
+                'discount_code' => 'nullable|string',
+            ]);
+
+            $service = new DirectCheckoutService();
+            $summary = $service->calculateCartSummary(
+                $validated['products'],
+                $validated['discount_code'] ?? null
+            );
+
+            return ApiHelper::validResponse(
+                'Cart summary calculated successfully',
+                $summary
+            );
+        } catch (ValidationException $e) {
+            return ApiHelper::inputErrorResponse(
+                $e->getMessage(),
+                ApiConstants::VALIDATION_ERR_CODE,
+                $request,
+                $e
+            );
+        } catch (\Exception $e) {
+            Log::error('Cart summary calculation failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'request' => $request->all()
+            ]);
+
+            return ApiHelper::problemResponse(
+                $e->getMessage(),
+                ApiConstants::BAD_REQ_ERR_CODE,
+                $request,
+                $e
+            );
+        } catch (Throwable $e) {
+            Log::error('Cart summary calculation failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'request' => $request->all()
+            ]);
+
+            return ApiHelper::problemResponse(
+                'An error occurred while calculating cart summary. Please try again later.',
                 ApiConstants::SERVER_ERR_CODE,
                 $request,
                 $e
