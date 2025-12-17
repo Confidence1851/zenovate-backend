@@ -31,7 +31,7 @@ class WebsiteService
         }
 
         // Verify reCAPTCHA token
-        $recaptchaSecret = config('services.recaptcha.secret') ?? env('RECAPTCHA_SECRET_KEY');
+        $recaptchaSecret = config('services.recaptcha.secret');
         if (!$recaptchaSecret) {
             Log::warning('reCAPTCHA secret key not configured');
             throw new \Exception('reCAPTCHA verification is not configured');

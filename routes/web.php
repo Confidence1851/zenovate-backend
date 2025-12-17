@@ -12,7 +12,7 @@ Route::get('/', function () {
 });
 
 Route::get('/website', function () {
-    return redirect()->away(env("FRONTEND_APP_URL"));
+    return redirect()->away(config('frontend.form_url'));
 })->name('website');
 
 Route::as("dashboard.")->prefix("dashboard")->middleware(["auth", "admin"])->group(function () {

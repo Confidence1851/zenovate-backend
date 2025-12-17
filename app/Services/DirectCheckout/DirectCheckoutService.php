@@ -224,7 +224,7 @@ class DirectCheckoutService
             ]);
         }
 
-        $recaptchaSecret = config('services.recaptcha.secret') ?? env('RECAPTCHA_SECRET_KEY');
+        $recaptchaSecret = config('services.recaptcha.secret');
         if (!$recaptchaSecret) {
             Log::warning('reCAPTCHA secret key not configured');
             throw new \Exception('reCAPTCHA verification is not configured');
@@ -312,7 +312,7 @@ class DirectCheckoutService
         }
 
         // Fallback to global config
-        return (float) config('checkout.shipping_fee', env('CHECKOUT_SHIPPING_FEE', 60));
+        return (float) config('checkout.shipping_fee', 60);
     }
 
     /**
@@ -326,7 +326,7 @@ class DirectCheckoutService
         }
 
         // Fallback to global config
-        return (float) config('checkout.tax_rate', env('CHECKOUT_TAX_RATE', 0));
+        return (float) config('checkout.tax_rate', 0);
     }
 
     /**
@@ -391,7 +391,7 @@ class DirectCheckoutService
         $productModels = [];
         $subTotal = 0;
         $totalTax = 0;
-        $defaultShippingFee = (float) config('checkout.shipping_fee', env('CHECKOUT_SHIPPING_FEE', 60));
+        $defaultShippingFee = (float) config('checkout.shipping_fee', 60);
 
         foreach ($products as $productData) {
             $product = Product::findOrFail($productData['product_id']);
@@ -451,7 +451,7 @@ class DirectCheckoutService
 
         $total = $discountedAmount + $taxAmount;
 
-        // Create form session for order sheet checkout
+        // Create a new form session for this checkout (creates a new order each time)
         $formSession = $this->createOrderSheetFormSession(
             $user,
             $productModels,
@@ -613,7 +613,8 @@ class DirectCheckoutService
             'customer_info' => $checkoutData['customer_info'],
         ];
 
-        // Use existing ProcessorService to create payment
+        // Create a new payment/order (ProcessorService::initiate always creates a new Payment record)
+        // Each time processOrderSheetPayment is called, a new order is created
         $result = (new ProcessorService())->initiate($formSession, $paymentData);
 
         // Clear checkout cache
@@ -640,7 +641,7 @@ class DirectCheckoutService
         // Load all products and calculate totals
         $subTotal = 0;
         $totalTax = 0;
-        $defaultShippingFee = (float) config('checkout.shipping_fee', env('CHECKOUT_SHIPPING_FEE', 60));
+        $defaultShippingFee = (float) config('checkout.shipping_fee', 60);
 
         foreach ($products as $productData) {
             $product = Product::findOrFail($productData['product_id']);

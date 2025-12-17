@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class ProductImage extends Model
 {
     protected $guarded = ['id'];
-    
+
     protected $casts = [
         'is_primary' => 'boolean',
         'display_order' => 'integer',
@@ -48,10 +48,10 @@ class ProductImage extends Model
 
         $encrypted = \App\Helpers\Helper::encrypt_decrypt("encrypt", $this->image_path);
         if ($encrypted) {
-            $baseUrl = env('APP_URL', 'http://localhost');
+            $baseUrl = config('app.url', 'http://localhost');
             return rtrim($baseUrl, '/') . '/api/get-file/' . $encrypted;
         }
-        
+
         return null;
     }
 }

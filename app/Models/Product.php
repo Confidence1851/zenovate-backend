@@ -105,7 +105,7 @@ class Product extends Model
                 if (!empty($path)) {
                     $encrypted = Helper::encrypt_decrypt("encrypt", $path);
                     if ($encrypted) {
-                        $baseUrl = env('APP_URL', 'http://localhost');
+                        $baseUrl = config('app.url', 'http://localhost');
                         $urls[] = rtrim($baseUrl, '/') . '/api/get-file/' . $encrypted;
                     }
                 }
@@ -117,7 +117,7 @@ class Product extends Model
             $placeholderPath = 'products/placeholder.png';
             $encrypted = Helper::encrypt_decrypt("encrypt", $placeholderPath);
             if ($encrypted) {
-                $baseUrl = env('APP_URL', 'http://localhost');
+                $baseUrl = config('app.url', 'http://localhost');
                 return rtrim($baseUrl, '/') . '/api/get-file/' . $encrypted;
             }
             return null;
@@ -152,7 +152,7 @@ class Product extends Model
             return (float) $this->shipping_fee;
         }
 
-        return (float) config('checkout.shipping_fee', env('CHECKOUT_SHIPPING_FEE', 60));
+        return (float) config('checkout.shipping_fee', 60);
     }
 
     /**
@@ -164,6 +164,6 @@ class Product extends Model
             return (float) $this->tax_rate;
         }
 
-        return (float) config('checkout.tax_rate', env('CHECKOUT_TAX_RATE', 0));
+        return (float) config('checkout.tax_rate', 0);
     }
 }

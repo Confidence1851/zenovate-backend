@@ -46,6 +46,14 @@
                             <p>
                                 <b>Sub Total:</b> {{ $payment->getAmount('sub_total') ?? 'N/A' }}
                             </p>
+                            @if (!empty($payment->discount_code) && !empty($payment->discount_amount))
+                                <p>
+                                    <b>Discount Code:</b> {{ $payment->discount_code }}
+                                </p>
+                                <p>
+                                    <b>Discount Amount:</b> -{{ strtoupper($payment->currency) }} {{ number_format($payment->discount_amount, 2) }}
+                                </p>
+                            @endif
                             <p>
                                 <b>Shipping Fee:</b> {{ $payment->getAmount('shipping_fee') ?? 'N/A' }}
                             </p>
@@ -58,14 +66,27 @@
                                 <b>Gateway:</b> {{ $payment->gateway ?? 'N/A' }}
                             </p>
                             <p>
-                                <b>Receipt:</b> <a href="{{ $payment->receipt_url }}" target="_blank"
-                                    rel="noopener noreferrer">View</a>
+                                <b>Receipt:</b>
+                                @if (!empty($payment->receipt_url))
+                                    <a href="{{ $payment->receipt_url }}" target="_blank"
+                                        rel="noopener noreferrer">View</a>
+                                @else
+                                    N/A
+                                @endif
                             </p>
                             <p>
-                                <b>Date:</b> {{ $payment->created_at ?? 'N/A' }}
+                                <b>Payment Reference:</b> {{ $payment->payment_reference ?? 'N/A' }}
                             </p>
                             <p>
-                                <b>Status:</b> {{ $payment->status ?? 'N/A' }}
+                                <b>Date:</b> {{ $payment->created_at ? $payment->created_at->format('Y-m-d H:i:s') : 'N/A' }}
+                            </p>
+                            @if ($payment->paid_at)
+                                <p>
+                                    <b>Paid At:</b> {{ $payment->paid_at->format('Y-m-d H:i:s') }}
+                                </p>
+                            @endif
+                            <p>
+                                <b>Status:</b> <x-status-badge :value="$payment->status" />
                             </p>
 
                         </div>
@@ -88,8 +109,8 @@
                                 <tbody>
                                     @forelse ($payment->paymentProducts as $paymentProduct)
                                         <tr>
-                                            <td>{{ $paymentProduct->product->name }}</td>
-                                            <td>1</td>
+                                            <td>{{ $paymentProduct->product->name ?? 'Unknown Product' }}</td>
+                                            <td>{{ $paymentProduct->quantity ?? 1 }}</td>
                                             <td>{{ $paymentProduct->getPrice() }}</td>
                                         </tr>
                                     @empty
@@ -111,3 +132,5 @@
     </main>
     <!-- /Page Content -->
 @endsection
+
+

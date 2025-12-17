@@ -50,7 +50,7 @@ class ProductCategory extends Model
         // Generate secure URL for category image (same method as products)
         $encrypted = \App\Helpers\Helper::encrypt_decrypt("encrypt", $this->image_path);
         if ($encrypted) {
-            $baseUrl = env('APP_URL', 'http://localhost');
+            $baseUrl = config('app.url', 'http://localhost');
             return rtrim($baseUrl, '/') . '/api/get-file/' . $encrypted;
         }
         return null;

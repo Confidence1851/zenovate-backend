@@ -129,7 +129,7 @@ class DTOService
 
     function paymentProducts()
     {
-        $selected_products = collect($this->metadata['raw']['selectedProducts'] ?? [])
+        $selected_products = collect($this->session->metadata['raw']['selectedProducts'] ?? [])
             ->whereNotNull("price_id");
 
 
@@ -140,8 +140,13 @@ class DTOService
 
         $currency = null;
         $list = [];
+        
+        // Load all products at once to avoid N+1 queries
+        $productIds = $selected_products->pluck('product_id')->unique()->filter()->toArray();
+        $products = \App\Models\Product::whereIn('id', $productIds)->get()->keyBy('id');
+        
         $selected_products->map(
-            function ($product_price) use (&$currency , &$list) {
+            function ($product_price) use (&$currency , &$list, $products) {
                 $info = null;
                 if (!empty($product_price["price_id"] ?? null)) {
                     try {
@@ -158,8 +163,15 @@ class DTOService
                 $item = new PaymentProduct([
                     "payment_id" => null,
                     "product_id" =>  $product_price["product_id"],
-                    "price" => $info
+                    "price" => $info,
+                    "quantity" => $product_price["quantity"] ?? 1,
                 ]);
+
+                // Load product relationship so it's available in the view
+                $product = $products->get($product_price["product_id"]);
+                if ($product) {
+                    $item->setRelation('product', $product);
+                }
 
                 $list[] = $item;
                 return $item;

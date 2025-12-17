@@ -98,7 +98,7 @@ class ProcessorService
         }
 
         // Fallback to global config
-        return (float) config('checkout.shipping_fee', env('CHECKOUT_SHIPPING_FEE', 60));
+        return (float) config('checkout.shipping_fee', 60);
     }
 
     public static function generateReference()

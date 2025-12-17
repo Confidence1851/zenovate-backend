@@ -23,7 +23,7 @@ class SignService
     function __construct(public FormSession $session)
     {
         $this->client = Http::withHeaders([
-            "X-Auth-Token" => env('DOCUSEAL_API_KEY'),
+            "X-Auth-Token" => config('services.docuseal.api_key', env('DOCUSEAL_API_KEY')),
             "Content-Type" => "application/json",
         ]);
     }

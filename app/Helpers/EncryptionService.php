@@ -9,8 +9,8 @@ class EncryptionService
     private $cipher = 'aes-256-cbc';
 
     function __construct() {
-    $this->secretKey = env("NEXT_PUBLIC_ENCRYPTION_KEY");
-    $this->secretIv = env("NEXT_PUBLIC_ENCRYPTION_IV");
+    $this->secretKey = config('app.encryption_key', env("NEXT_PUBLIC_ENCRYPTION_KEY"));
+    $this->secretIv = config('app.encryption_iv', env("NEXT_PUBLIC_ENCRYPTION_IV"));
 
     }
 

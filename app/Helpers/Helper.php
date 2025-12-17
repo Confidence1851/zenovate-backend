@@ -152,8 +152,8 @@ class Helper
         ], [
             "first_name" => "Super",
             "last_name" => "Admin",
-            "email" => env("SUDO_EMAIL"),
-            "password" => env("SUDO_PASSWORD"),
+            "email" => config('app.sudo_email', env("SUDO_EMAIL")),
+            "password" => config('app.sudo_password', env("SUDO_PASSWORD")),
             "team" => AppConstants::TEAM_ZENOVATE
         ]);
     }

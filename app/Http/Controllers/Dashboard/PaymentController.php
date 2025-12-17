@@ -64,7 +64,7 @@ class PaymentController extends Controller
     {
         $payment = Payment::with([
             "formSession",
-            "products"
+            "paymentProducts.product"
         ])->findOrFail($id);
         return view("admin.pages.payments.show", [
             "payment" => $payment,
