@@ -159,7 +159,8 @@ class StripeService
         $taxRateId = null;
         if (isset($this->taxRate) && $this->taxRate > 0) {
             try {
-                $taxLabel = $this->payment->order_type === 'order_sheet' ? 'Tax' : 'HST';
+                $isMultiProduct = in_array($this->payment->order_type, ['order_sheet', 'cart']);
+                $taxLabel = $isMultiProduct ? 'Tax' : 'HST';
                 $tax = $this->stripeClient->taxRates->create([
                     'display_name' => $taxLabel,
                     'inclusive' => false, // Tax is added on top, not included in price
@@ -206,10 +207,10 @@ class StripeService
             : 0;
 
         $discountCode = $this->payment->discount_code ?? null;
-        $isOrderSheet = $this->payment->order_type === 'order_sheet';
+        $isMultiProduct = in_array($this->payment->order_type, ['order_sheet', 'cart']);
 
-        // For order sheets with discounts, add shipping as a line item so discount applies to it
-        if ($isOrderSheet && $discountAmount > 0 && $discountCode && $this->shippingFee > 0) {
+        // For order sheets and cart checkouts with discounts, add shipping as a line item so discount applies to it
+        if ($isMultiProduct && $discountAmount > 0 && $discountCode && $this->shippingFee > 0) {
             // Add shipping as a line item so the coupon applies to it
             $shipping_line_item = [
                 'price_data' => [
@@ -330,8 +331,8 @@ class StripeService
                     //throw $th;
                 }
 
-                // Send emails for successful order sheet payments
-                if ($this->payment->order_type === 'order_sheet') {
+                // Send emails for successful order sheet and cart payments
+                if (in_array($this->payment->order_type, ['order_sheet', 'cart'])) {
                     $this->sendOrderSheetEmails();
                 }
             } else {

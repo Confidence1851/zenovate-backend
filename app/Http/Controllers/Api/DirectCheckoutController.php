@@ -178,12 +178,13 @@ class DirectCheckoutController extends Controller
         $discountCode = $payment->discount_code ?? null;
         $discountAmount = (float) ($payment->discount_amount ?? 0);
         $total = (float) ($payment->total ?? 0);
-        // Order sheet checkouts always use USD
-        $currency = ($orderType === 'order_sheet') ? 'USD' : ($payment->currency ?? 'USD');
+        // Order sheet and cart checkouts always use USD
+        $isMultiProduct = in_array($orderType, ['order_sheet', 'cart']);
+        $currency = $isMultiProduct ? 'USD' : ($payment->currency ?? 'USD');
 
-        // Products: for order_sheet, use paymentProducts; otherwise try product from form session metadata
+        // Products: for order_sheet and cart, use paymentProducts; otherwise try product from form session metadata
         $products = [];
-        if ($orderType === 'order_sheet') {
+        if ($isMultiProduct) {
             foreach ($payment->paymentProducts as $pp) {
                 $product = $pp->product;
                 if (!$product) {
@@ -326,13 +327,18 @@ class DirectCheckoutController extends Controller
 
             // Determine checkout type from cache
             $cached = cache()->get("direct_checkout_{$validated['checkout_id']}");
-            $isOrderSheet = $cached && ($cached['order_type'] ?? null) === 'order_sheet';
+            $orderType = $cached['order_type'] ?? 'regular';
 
             $service = new DirectCheckoutService();
             $recaptchaToken = $validated['recaptcha_token'] ?? null;
-            $result = $isOrderSheet
-                ? $service->processOrderSheetPayment($validated['checkout_id'], $recaptchaToken)
-                : $service->processPayment($validated['checkout_id'], $recaptchaToken);
+            
+            if ($orderType === 'order_sheet') {
+                $result = $service->processOrderSheetPayment($validated['checkout_id'], $recaptchaToken);
+            } elseif ($orderType === 'cart') {
+                $result = $service->processCartPayment($validated['checkout_id'], $recaptchaToken);
+            } else {
+                $result = $service->processPayment($validated['checkout_id'], $recaptchaToken);
+            }
 
             return ApiHelper::validResponse(
                 'Payment processed successfully',
@@ -594,6 +600,121 @@ class DirectCheckoutController extends Controller
 
             return ApiHelper::problemResponse(
                 'An error occurred while retrieving payment information.',
+                ApiConstants::SERVER_ERR_CODE,
+                $request,
+                $e
+            );
+        }
+    }
+
+    /**
+     * Initialize cart checkout (multiple products from cart)
+     */
+    public function cartInit(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                'products' => 'required|array|min:1',
+                'products.*.product_id' => 'required|integer|exists:products,id',
+                'products.*.price_id' => 'required|string',
+                'products.*.quantity' => 'required|integer|min:1',
+                'first_name' => 'required|string|max:255',
+                'last_name' => 'required|string|max:255',
+                'email' => 'required|email|max:255',
+                'phone' => 'required|string|max:255',
+                'account_number' => 'nullable|string|max:255',
+                'location' => 'nullable|string|max:255',
+                'shipping_address' => 'nullable|string',
+                'additional_information' => 'nullable|string',
+                'discount_code' => 'nullable|string',
+            ]);
+
+            $service = new DirectCheckoutService();
+            $checkoutData = $service->initializeCartCheckout(
+                $validated['products'],
+                $validated['first_name'],
+                $validated['last_name'],
+                $validated['email'],
+                $validated['phone'],
+                $validated['account_number'] ?? '',
+                $validated['location'] ?? '',
+                $validated['shipping_address'] ?? null,
+                $validated['additional_information'] ?? null,
+                $validated['discount_code'] ?? null
+            );
+
+            return ApiHelper::validResponse(
+                'Cart checkout initialized successfully',
+                $checkoutData
+            );
+        } catch (ValidationException $e) {
+            return ApiHelper::inputErrorResponse(
+                $e->getMessage(),
+                ApiConstants::VALIDATION_ERR_CODE,
+                $request,
+                $e
+            );
+        } catch (GeneralException $e) {
+            return ApiHelper::problemResponse(
+                $e->getMessage(),
+                ApiConstants::BAD_REQ_ERR_CODE
+            );
+        } catch (Throwable $e) {
+            Log::error('Cart checkout initialization failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'request' => $request->all()
+            ]);
+
+            return ApiHelper::problemResponse(
+                'An error occurred while initializing checkout. Please try again later.',
+                ApiConstants::SERVER_ERR_CODE,
+                $request,
+                $e
+            );
+        }
+    }
+
+    /**
+     * Process cart payment and redirect to Stripe
+     */
+    public function processCart(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                'checkout_id' => 'required|string',
+                'recaptcha_token' => 'nullable|string',
+            ]);
+
+            $service = new DirectCheckoutService();
+            $recaptchaToken = $validated['recaptcha_token'] ?? null;
+            $result = $service->processCartPayment($validated['checkout_id'], $recaptchaToken);
+
+            return ApiHelper::validResponse(
+                'Payment processed successfully',
+                $result
+            );
+        } catch (ValidationException $e) {
+            return ApiHelper::inputErrorResponse(
+                $e->getMessage(),
+                ApiConstants::VALIDATION_ERR_CODE,
+                $request,
+                $e
+            );
+        } catch (GeneralException $e) {
+            return ApiHelper::problemResponse(
+                $e->getMessage(),
+                ApiConstants::BAD_REQ_ERR_CODE
+            );
+        } catch (Throwable $e) {
+            Log::error('Cart payment processing failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'request' => $request->all()
+            ]);
+
+            return ApiHelper::problemResponse(
+                'An error occurred while processing payment. Please try again later.',
                 ApiConstants::SERVER_ERR_CODE,
                 $request,
                 $e

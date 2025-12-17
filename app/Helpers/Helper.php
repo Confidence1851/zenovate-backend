@@ -210,7 +210,7 @@ class Helper
 
     /**
      * Get Bootstrap badge/pill classes for a given status value
-     * 
+     *
      * @param string $value The status value to get classes for
      * @return string Bootstrap badge classes (e.g., 'success text-white', 'danger', etc.)
      */

@@ -16,11 +16,14 @@ class ProcessorService
         $service = new StripeService;
 
         $metadata = $session->metadata["raw"];
-        $isOrderSheet = ($data["order_type"] ?? null) === "order_sheet";
+        $orderType = $data["order_type"] ?? "regular";
+        $isOrderSheet = $orderType === "order_sheet";
+        $isCart = $orderType === "cart";
+        $isMultiProduct = $isOrderSheet || $isCart;
         $customerInfo = $data["customer_info"] ?? null;
 
-        // Order sheet checkouts always use USD
-        $currency = $isOrderSheet ? 'USD' : ($data["currency"] ?? 'USD');
+        // Order sheet and cart checkouts always use USD
+        $currency = $isMultiProduct ? 'USD' : ($data["currency"] ?? 'USD');
 
         $payment = Payment::create([
             "form_session_id" => $session->id,
@@ -30,20 +33,20 @@ class ProcessorService
             "currency" => $currency,
             "total" => $data["total"],
             "shipping_fee" => $data["shipping_fee"],
-            "address" => $isOrderSheet ? ($customerInfo["shipping_address"] ?? $customerInfo["location"] ?? null) : ($metadata["streetAddress"] ?? null),
-            "postal_code" => $isOrderSheet ? null : ($metadata["postalZipCode"] ?? null),
-            "city" => $isOrderSheet ? null : ($metadata["city"] ?? null),
-            "country" => $isOrderSheet ? null : ($metadata["country"] ?? null),
-            "province" => $isOrderSheet ? null : ($metadata["stateProvince"] ?? null),
-            "phone" => $isOrderSheet ? ($customerInfo["phone"] ?? null) : ($metadata["phoneNumber"] ?? null),
+            "address" => $isMultiProduct ? ($customerInfo["shipping_address"] ?? $customerInfo["location"] ?? null) : ($metadata["streetAddress"] ?? null),
+            "postal_code" => $isMultiProduct ? null : ($metadata["postalZipCode"] ?? null),
+            "city" => $isMultiProduct ? null : ($metadata["city"] ?? null),
+            "country" => $isMultiProduct ? null : ($metadata["country"] ?? null),
+            "province" => $isMultiProduct ? null : ($metadata["stateProvince"] ?? null),
+            "phone" => $isMultiProduct ? ($customerInfo["phone"] ?? null) : ($metadata["phoneNumber"] ?? null),
             "status" => StatusConstants::PENDING,
             "discount_code" => $data["discount_code"] ?? null,
             "discount_amount" => $data["discount_amount"] ?? null,
-            "order_type" => $isOrderSheet ? "order_sheet" : "regular",
-            "account_number" => $isOrderSheet ? ($customerInfo["account_number"] ?? null) : null,
-            "location" => $isOrderSheet ? ($customerInfo["location"] ?? null) : null,
-            "shipping_address" => $isOrderSheet ? ($customerInfo["shipping_address"] ?? null) : null,
-            "additional_information" => $isOrderSheet ? ($customerInfo["additional_information"] ?? null) : null,
+            "order_type" => $orderType,
+            "account_number" => $isMultiProduct ? ($customerInfo["account_number"] ?? null) : null,
+            "location" => $isMultiProduct ? ($customerInfo["location"] ?? null) : null,
+            "shipping_address" => $isMultiProduct ? ($customerInfo["shipping_address"] ?? null) : null,
+            "additional_information" => $isMultiProduct ? ($customerInfo["additional_information"] ?? null) : null,
         ]);
 
         foreach ($data["products"] as $product) {
@@ -60,8 +63,8 @@ class ProcessorService
         // Ensure payment is saved and refreshed before passing to StripeService
         $payment->refresh();
 
-        // Order sheet checkouts always use USD and US country code
-        $countryCode = $isOrderSheet ? 'US' : ($data["country_code"] ?? 'US');
+        // Order sheet and cart checkouts always use USD and US country code
+        $countryCode = $isMultiProduct ? 'US' : ($data["country_code"] ?? 'US');
 
         $service->setCurrency($currency)
             ->setCountry($countryCode)
