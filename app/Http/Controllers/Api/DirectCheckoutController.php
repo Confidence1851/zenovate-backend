@@ -331,7 +331,7 @@ class DirectCheckoutController extends Controller
 
             $service = new DirectCheckoutService();
             $recaptchaToken = $validated['recaptcha_token'] ?? null;
-            
+
             if ($orderType === 'order_sheet') {
                 $result = $service->processOrderSheetPayment($validated['checkout_id'], $recaptchaToken);
             } elseif ($orderType === 'cart') {
