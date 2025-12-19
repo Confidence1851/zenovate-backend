@@ -159,19 +159,19 @@ class UpdateService
             ];
         }
         
-        // Default to Canada if country is not recognized or info is empty
+        // Default to USD if country is not recognized or info is empty (unless Canada)
         if (!empty($info) && isset($info["currency"]) && isset($info["countryCode"])) {
             return [
                 "currency" => $info["currency"],
                 "country_code" => $info["countryCode"],
-                "country" => $info["country"] ?? "Canada"
+                "country" => $info["country"] ?? "United States"
             ];
         }
         
         return [
-            "currency" => "CAD",
-            "country_code" => "CA",
-            "country" => "Canada"
+            "currency" => "USD",
+            "country_code" => "US",
+            "country" => "United States"
         ];
     }
 

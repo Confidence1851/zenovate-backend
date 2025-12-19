@@ -212,6 +212,7 @@ class StripeService
         // For order sheets and cart checkouts with discounts, add shipping as a line item so discount applies to it
         if ($isMultiProduct && $discountAmount > 0 && $discountCode && $this->shippingFee > 0) {
             // Add shipping as a line item so the coupon applies to it
+            // Note: Tax is NOT applied to shipping - only to products
             $shipping_line_item = [
                 'price_data' => [
                     'currency' => $this->currency,
@@ -223,11 +224,7 @@ class StripeService
                 'quantity' => 1,
             ];
 
-            // Apply tax rate to shipping line item
-            if ($taxRateId) {
-                $shipping_line_item['tax_rates'] = [$taxRateId];
-            }
-
+            // Do NOT apply tax rate to shipping - tax only applies to products
             $line_items[] = $shipping_line_item;
 
             // Don't use shipping_options when shipping is a line item

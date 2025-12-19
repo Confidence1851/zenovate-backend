@@ -181,31 +181,28 @@ class DirectCheckoutService
             throw new \Exception('Checkout session expired or not found');
         }
 
-        // Calculate subtotal + shipping (before discount)
-        $subtotalWithShipping = $checkoutData['sub_total'] + $checkoutData['shipping_fee'];
-
-        // Apply discount using DiscountCodeService (on subtotal + shipping)
+        // Apply discount using DiscountCodeService (on subtotal only, not shipping)
         $discountService = new DiscountCodeService();
         $discountModel = $discountService->validate($discountCode);
         if (!$discountModel) {
             throw new \Exception('Invalid or expired discount code');
         }
 
-        // Calculate discount on subtotal + shipping
-        $discountAmount = $discountService->calculateDiscount($subtotalWithShipping, $discountModel);
+        // Calculate discount on subtotal only
+        $discountAmount = $discountService->calculateDiscount($checkoutData['sub_total'], $discountModel);
 
         // Increment usage count
         $discountModel->incrementUsage();
 
-        // Apply discount to subtotal + shipping
-        $discountedAmount = max(0, $subtotalWithShipping - $discountAmount);
-
-        // Recalculate tax on discounted amount
-        $taxAmount = $discountedAmount * ($checkoutData['tax_rate'] / 100);
+        // Apply discount to subtotal only
+        $discountedSubtotal = max(0, $checkoutData['sub_total'] - $discountAmount);
+        
+        // Calculate tax on discounted subtotal only (not including shipping)
+        $taxAmount = $discountedSubtotal * ($checkoutData['tax_rate'] / 100);
         $checkoutData['tax_amount'] = round($taxAmount, 2);
         $checkoutData['discount_code'] = $discountModel->code;
         $checkoutData['discount_amount'] = round($discountAmount, 2);
-        $checkoutData['total'] = round($discountedAmount + $taxAmount, 2);
+        $checkoutData['total'] = round($discountedSubtotal + $checkoutData['shipping_fee'] + $taxAmount, 2);
 
         // Update cache
         cache()->put("direct_checkout_{$checkoutId}", $checkoutData, now()->addMinutes(30));
@@ -335,9 +332,19 @@ class DirectCheckoutService
     private function getGeoData(): array
     {
         $info = IpAddressService::info();
-        $currency = $info["currency"] ?? "CAD";
-        $countryCode = $info["countryCode"] ?? "CA";
-        $country = $info["country"] ?? "Canada";
+        $countryCode = $info["countryCode"] ?? null;
+        $country = $info["country"] ?? null;
+        
+        // Default to USD if location is not Canada
+        if (strtolower($countryCode ?? '') === 'ca' || strtolower($country ?? '') === 'canada') {
+            $currency = $info["currency"] ?? "CAD";
+            $countryCode = $countryCode ?? "CA";
+            $country = $country ?? "Canada";
+        } else {
+            $currency = $info["currency"] ?? "USD";
+            $countryCode = $countryCode ?? "US";
+            $country = $country ?? "United States";
+        }
 
         return [
             'currency' => $currency,
@@ -427,10 +434,7 @@ class DirectCheckoutService
             $defaultShippingFee
         );
 
-        // Calculate subtotal + shipping (before discount)
-        $subtotalWithShipping = $subTotal + $shippingFee;
-
-        // Apply discount if provided (to subtotal + shipping)
+        // Apply discount if provided (to subtotal only, not shipping)
         $discountAmount = 0;
         if ($discountCode) {
             $discountService = new DiscountCodeService();
@@ -438,18 +442,18 @@ class DirectCheckoutService
             if (!$discountModel) {
                 throw new \Exception('Invalid discount code');
             }
-            // Calculate discount on subtotal + shipping
-            $discountAmount = $discountService->calculateDiscount($subtotalWithShipping, $discountModel);
+            // Calculate discount on subtotal only
+            $discountAmount = $discountService->calculateDiscount($subTotal, $discountModel);
         }
 
-        // Apply discount to subtotal + shipping
-        $discountedAmount = max(0, $subtotalWithShipping - $discountAmount);
-
-        // Calculate tax on discounted amount
+        // Apply discount to subtotal only
+        $discountedSubtotal = max(0, $subTotal - $discountAmount);
+        
+        // Calculate tax on discounted subtotal only (not including shipping)
         $averageTaxRate = $subTotal > 0 ? ($totalTax / $subTotal) * 100 : 0;
-        $taxAmount = $discountedAmount * ($averageTaxRate / 100);
+        $taxAmount = $discountedSubtotal * ($averageTaxRate / 100);
 
-        $total = $discountedAmount + $taxAmount;
+        $total = $discountedSubtotal + $shippingFee + $taxAmount;
 
         // Create a new form session for this checkout (creates a new order each time)
         $formSession = $this->createOrderSheetFormSession(
@@ -690,10 +694,7 @@ class DirectCheckoutService
             $defaultShippingFee
         );
 
-        // Calculate subtotal + shipping (before discount)
-        $subtotalWithShipping = $subTotal + $shippingFee;
-
-        // Apply discount if provided (to subtotal + shipping)
+        // Apply discount if provided (to subtotal only, not shipping)
         $discountAmount = 0;
         if ($discountCode) {
             $discountService = new DiscountCodeService();
@@ -701,18 +702,18 @@ class DirectCheckoutService
             if (!$discountModel) {
                 throw new \Exception('Invalid discount code');
             }
-            // Calculate discount on subtotal + shipping
-            $discountAmount = $discountService->calculateDiscount($subtotalWithShipping, $discountModel);
+            // Calculate discount on subtotal only
+            $discountAmount = $discountService->calculateDiscount($subTotal, $discountModel);
         }
 
-        // Apply discount to subtotal + shipping
-        $discountedAmount = max(0, $subtotalWithShipping - $discountAmount);
-
-        // Calculate tax on discounted amount
+        // Apply discount to subtotal only
+        $discountedSubtotal = max(0, $subTotal - $discountAmount);
+        
+        // Calculate tax on discounted subtotal only (not including shipping)
         $averageTaxRate = $subTotal > 0 ? ($totalTax / $subTotal) * 100 : 0;
-        $taxAmount = $discountedAmount * ($averageTaxRate / 100);
+        $taxAmount = $discountedSubtotal * ($averageTaxRate / 100);
 
-        $total = $discountedAmount + $taxAmount;
+        $total = $discountedSubtotal + $shippingFee + $taxAmount;
 
         // Create a new form session for this checkout
         $formSession = $this->createCartFormSession(
@@ -932,28 +933,25 @@ class DirectCheckoutService
             $defaultShippingFee
         );
 
-        // Calculate subtotal + shipping (before discount)
-        $subtotalWithShipping = $subTotal + $shippingFee;
-
-        // Apply discount if provided (to subtotal + shipping)
+        // Apply discount if provided (to subtotal only, not shipping)
         $discountAmount = 0;
         if ($discountCode) {
             $discountService = new DiscountCodeService();
             $discountModel = $discountService->validate($discountCode);
             if ($discountModel) {
-                // Calculate discount on subtotal + shipping
-                $discountAmount = $discountService->calculateDiscount($subtotalWithShipping, $discountModel);
+                // Calculate discount on subtotal only
+                $discountAmount = $discountService->calculateDiscount($subTotal, $discountModel);
             }
         }
 
-        // Apply discount to subtotal + shipping
-        $discountedAmount = max(0, $subtotalWithShipping - $discountAmount);
-
-        // Calculate tax on discounted amount
+        // Apply discount to subtotal only
+        $discountedSubtotal = max(0, $subTotal - $discountAmount);
+        
+        // Calculate tax on discounted subtotal only (not including shipping)
         $averageTaxRate = $subTotal > 0 ? ($totalTax / $subTotal) * 100 : 0;
-        $taxAmount = $discountedAmount * ($averageTaxRate / 100);
+        $taxAmount = $discountedSubtotal * ($averageTaxRate / 100);
 
-        $total = $discountedAmount + $taxAmount;
+        $total = $discountedSubtotal + $shippingFee + $taxAmount;
 
         return [
             'sub_total' => round($subTotal, 2),

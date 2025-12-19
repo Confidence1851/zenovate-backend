@@ -54,7 +54,7 @@ class IpAddressService
                     "CA" => "CAD",
                     "US" => "USD",
                 ];
-                $check["currency"] = $currencies[$check["countryCode"]] ?? "CAD";
+                $check["currency"] = $currencies[$check["countryCode"]] ?? "USD";
                 $info = $check;
             }
         }

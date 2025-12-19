@@ -37,25 +37,34 @@ class Product extends Model
         return $this->belongsTo(ProductCategory::class, 'category_id');
     }
 
-    function getLocationPrice()
+    function getLocationPrice($excludeFrequency = null)
     {
         $info = IpAddressService::info();
-        $currency = $info["currency"] ?? "CAD";
+        $currency = $info["currency"] ?? "USD";
+
+        if (empty($this->price) || !is_array($this->price)) {
+            return [];
+        }
 
         $list = [];
         foreach ($this->price as $value) {
+            // Filter out excluded frequency if specified
+            if ($excludeFrequency !== null && isset($value["frequency"]) && $value["frequency"] == $excludeFrequency) {
+                continue;
+            }
+
             $currencyKey = strtolower($currency);
 
-            // Check if the requested currency exists, otherwise fall back to CAD or first available
+            // Check if the requested currency exists, otherwise fall back to USD or first available
             if (!isset($value["values"][$currencyKey])) {
-                // Try CAD first (default)
-                if (isset($value["values"]["cad"])) {
-                    $currencyKey = "cad";
-                    $currency = "CAD";
-                } elseif (isset($value["values"]["usd"])) {
-                    // Fall back to USD if CAD not available
+                // Try USD first (default)
+                if (isset($value["values"]["usd"])) {
                     $currencyKey = "usd";
                     $currency = "USD";
+                } elseif (isset($value["values"]["cad"])) {
+                    // Fall back to CAD if USD not available
+                    $currencyKey = "cad";
+                    $currency = "CAD";
                 } else {
                     // Use first available currency
                     $currencyKey = array_key_first($value["values"]);

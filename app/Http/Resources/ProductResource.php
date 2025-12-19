@@ -14,6 +14,36 @@ class ProductResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        // Determine context based on route name or path
+        $routeName = $request->route()?->getName();
+        $path = $request->path();
+
+        $isIndexPage = $routeName === 'form.products.index'
+            || $routeName === 'form.products.by-categories'
+            || $routeName === 'form.products.order-sheet'
+            || ($path === 'form/products' || str_contains($path, 'form/products/by-categories') || str_contains($path, 'form/products/order-sheet'));
+
+        $isDetailPage = $routeName === 'form.products.info'
+            || (preg_match('/^form\/products\/[^\/]+$/', $path) && !str_contains($path, 'by-categories') && !str_contains($path, 'order-sheet'));
+
+        // Filter prices based on context
+        $prices = [];
+        if ($isIndexPage) {
+            // Index pages: Show ONLY 1-month price (frequency = 1)
+            $prices = $this->getLocationPrice();
+            $prices = array_filter($prices, function ($price) {
+                return isset($price['frequency']) && $price['frequency'] == 1;
+            });
+            $prices = array_values($prices);
+        } elseif ($isDetailPage) {
+            // Detail pages: EXCLUDE 1-month price (show 3, 6, 9, 12 months only)
+            // Use getLocationPrice(1) to exclude frequency 1 directly
+            $prices = $this->getLocationPrice(1);
+        } else {
+            // Default: return all prices
+            $prices = $this->getLocationPrice();
+        }
+
         return [
             "id" => $this->id,
             "name" => $this->name,
@@ -25,7 +55,7 @@ class ProductResource extends JsonResource
             "key_ingredients" => $this->key_ingredients,
             "benefits" => $this->benefits,
             "potency" => $this->potency,
-            "price" => $this->getLocationPrice(),
+            "price" => $prices,
             "quantity" => 1,
             "selected_price" => $this->selected_price,
             "image_path" => $this->image_path,
