@@ -28,9 +28,17 @@ class ProductResource extends JsonResource
 
         // Filter prices based on context
         $prices = [];
+        
+        // For order sheet, use currency from request if provided (location-based pricing)
+        $currency = null;
+        if ($isIndexPage && $routeName === 'form.products.order-sheet') {
+            $currency = $request->input('order_sheet_currency');
+        }
+        
         if ($isIndexPage) {
             // Index pages: Show ONLY 1-month price (frequency = 1)
-            $prices = $this->getLocationPrice();
+            // For order sheet, use location-based currency (CAD for Canada, USD for others)
+            $prices = $this->getLocationPrice(null, $currency);
             $prices = array_filter($prices, function ($price) {
                 return isset($price['frequency']) && $price['frequency'] == 1;
             });

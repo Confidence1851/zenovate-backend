@@ -37,10 +37,13 @@ class Product extends Model
         return $this->belongsTo(ProductCategory::class, 'category_id');
     }
 
-    function getLocationPrice($excludeFrequency = null)
+    function getLocationPrice($excludeFrequency = null, ?string $currency = null)
     {
-        $info = IpAddressService::info();
-        $currency = $info["currency"] ?? "USD";
+        // If currency is not provided, use IP-based detection
+        if ($currency === null) {
+            $info = IpAddressService::info();
+            $currency = $info["currency"] ?? "USD";
+        }
 
         if (empty($this->price) || !is_array($this->price)) {
             return [];

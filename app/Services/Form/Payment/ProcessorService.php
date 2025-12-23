@@ -22,8 +22,9 @@ class ProcessorService
         $isMultiProduct = $isOrderSheet || $isCart;
         $customerInfo = $data["customer_info"] ?? null;
 
-        // Order sheet and cart checkouts always use USD
-        $currency = $isMultiProduct ? 'USD' : ($data["currency"] ?? 'USD');
+        // Use location-based currency: CAD for Canada, USD for others
+        // For order sheets, currency is determined by location field
+        $currency = $data["currency"] ?? 'USD';
 
         $payment = Payment::create([
             "form_session_id" => $session->id,
@@ -63,8 +64,8 @@ class ProcessorService
         // Ensure payment is saved and refreshed before passing to StripeService
         $payment->refresh();
 
-        // Order sheet and cart checkouts always use USD and US country code
-        $countryCode = $isMultiProduct ? 'US' : ($data["country_code"] ?? 'US');
+        // Use location-based country code: CA for Canada, US for others
+        $countryCode = $data["country_code"] ?? 'US';
 
         $service->setCurrency($currency)
             ->setCountry($countryCode)

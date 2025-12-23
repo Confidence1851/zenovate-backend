@@ -16,6 +16,7 @@ use App\Services\Form\Session\StartService;
 use App\Services\Form\Session\UpdateService;
 use App\Services\Form\Payment\ProcessorService;
 use App\Services\Form\Session\WebhookService;
+use App\Services\General\IpAddressService;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -125,9 +126,24 @@ class FormController extends Controller
         }
     }
 
-    function orderSheetProducts()
+    function orderSheetProducts(Request $request)
     {
         try {
+            // Auto-detect currency from IP address: CAD for Canada, USD for others
+            $info = IpAddressService::info();
+            $countryCode = $info["countryCode"] ?? null;
+            $country = $info["country"] ?? null;
+            
+            // CAD for Canada, USD for others
+            if (strtolower($countryCode ?? '') === 'ca' || strtolower($country ?? '') === 'canada') {
+                $currency = $info["currency"] ?? "CAD";
+            } else {
+                $currency = $info["currency"] ?? "USD";
+            }
+            
+            // Store currency in request for ProductResource to use
+            $request->merge(['order_sheet_currency' => $currency]);
+            
             return ApiHelper::validResponse(
                 'Order sheet products retrieved successfully',
                 ProductResource::collection(

@@ -354,6 +354,28 @@ class DirectCheckoutService
     }
 
     /**
+     * Get geo data from location field or IP address
+     * For order sheets, use location field to determine currency (CAD for Canada, USD otherwise)
+     */
+    private function getGeoDataFromLocation(?string $location = null): array
+    {
+        // If location field is provided, check if it contains "canada" or "ca"
+        if ($location) {
+            $locationLower = strtolower($location);
+            if (strpos($locationLower, 'canada') !== false || strpos($locationLower, ', ca') !== false || strpos($locationLower, ' ca') !== false) {
+                return [
+                    'currency' => 'CAD',
+                    'country_code' => 'CA',
+                    'country' => 'Canada',
+                ];
+            }
+        }
+
+        // Fall back to IP-based detection
+        return $this->getGeoData();
+    }
+
+    /**
      * Calculate shipping fee for order sheet (single fee for the entire order)
      * Rules:
      * - Orders >= $1000: free shipping
@@ -387,12 +409,8 @@ class DirectCheckoutService
         // Find or create user by email
         $user = $this->findOrCreateUser($firstName, $lastName, $email);
 
-        // Order sheet checkouts always use USD
-        $geoData = [
-            'currency' => 'USD',
-            'country_code' => 'US',
-            'country' => 'United States',
-        ];
+        // Use location field for currency detection: CAD for Canada, USD for others
+        $geoData = $this->getGeoDataFromLocation($location);
 
         // Load all products and calculate totals
         $productModels = [];
@@ -647,12 +665,8 @@ class DirectCheckoutService
         // Find or create user by email
         $user = $this->findOrCreateUser($firstName, $lastName, $email);
 
-        // Cart checkouts always use USD
-        $geoData = [
-            'currency' => 'USD',
-            'country_code' => 'US',
-            'country' => 'United States',
-        ];
+        // Use location-based pricing: CAD for Canada, USD for others
+        $geoData = $this->getGeoData();
 
         // Load all products and calculate totals
         $productModels = [];
@@ -893,14 +907,11 @@ class DirectCheckoutService
      */
     public function calculateCartSummary(
         array $products, // [{product_id, price_id, quantity}, ...]
-        ?string $discountCode = null
+        ?string $discountCode = null,
+        ?string $location = null
     ): array {
-        // Order sheet checkouts always use USD
-        $geoData = [
-            'currency' => 'USD',
-            'country_code' => 'US',
-            'country' => 'United States',
-        ];
+        // Use location-based pricing: CAD for Canada, USD for others
+        $geoData = $this->getGeoDataFromLocation($location);
 
         // Load all products and calculate totals
         $subTotal = 0;
