@@ -665,8 +665,8 @@ class DirectCheckoutService
         // Find or create user by email
         $user = $this->findOrCreateUser($firstName, $lastName, $email);
 
-        // Use location-based pricing: CAD for Canada, USD for others
-        $geoData = $this->getGeoData();
+        // Use location field for currency detection: CAD for Canada, USD for others
+        $geoData = $this->getGeoDataFromLocation($location);
 
         // Load all products and calculate totals
         $productModels = [];
