@@ -467,6 +467,11 @@ class DirectCheckoutService
         // Apply discount to subtotal only
         $discountedSubtotal = max(0, $subTotal - $discountAmount);
         
+        // If discount is 100% (discounted subtotal is 0), set shipping fee to 0
+        if ($discountedSubtotal == 0 && $discountAmount > 0) {
+            $shippingFee = 0;
+        }
+        
         // Calculate tax on discounted subtotal only (not including shipping)
         $averageTaxRate = $subTotal > 0 ? ($totalTax / $subTotal) * 100 : 0;
         $taxAmount = $discountedSubtotal * ($averageTaxRate / 100);
@@ -723,6 +728,11 @@ class DirectCheckoutService
         // Apply discount to subtotal only
         $discountedSubtotal = max(0, $subTotal - $discountAmount);
         
+        // If discount is 100% (discounted subtotal is 0), set shipping fee to 0
+        if ($discountedSubtotal == 0 && $discountAmount > 0) {
+            $shippingFee = 0;
+        }
+        
         // Calculate tax on discounted subtotal only (not including shipping)
         $averageTaxRate = $subTotal > 0 ? ($totalTax / $subTotal) * 100 : 0;
         $taxAmount = $discountedSubtotal * ($averageTaxRate / 100);
@@ -957,6 +967,11 @@ class DirectCheckoutService
 
         // Apply discount to subtotal only
         $discountedSubtotal = max(0, $subTotal - $discountAmount);
+        
+        // If discount is 100% (discounted subtotal is 0), set shipping fee to 0
+        if ($discountedSubtotal == 0 && $discountAmount > 0) {
+            $shippingFee = 0;
+        }
         
         // Calculate tax on discounted subtotal only (not including shipping)
         $averageTaxRate = $subTotal > 0 ? ($totalTax / $subTotal) * 100 : 0;

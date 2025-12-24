@@ -138,22 +138,26 @@ class StripeService
         ];
 
         // Default shipping info (will be modified for order sheets with discounts)
-        $shipping_info = [
-            'shipping_address_collection' => ['allowed_countries' => ["CA", "US"]],
-            'shipping_options' => [
-                [
-                    'shipping_rate_data' => [
-                        'type' => 'fixed_amount',
-                        'fixed_amount' => ['amount' => $this->shippingFee * 100, 'currency' => $this->currency],
-                        'display_name' => 'Shipping',
-                        'delivery_estimate' => [
-                            'minimum' => ['unit' => 'business_day', 'value' => 1],
-                            'maximum' => ['unit' => 'business_day', 'value' => 7],
+        // If shipping fee is 0 (e.g., 100% discount), don't add shipping options
+        $shipping_info = [];
+        if ($this->shippingFee > 0) {
+            $shipping_info = [
+                'shipping_address_collection' => ['allowed_countries' => ["CA", "US"]],
+                'shipping_options' => [
+                    [
+                        'shipping_rate_data' => [
+                            'type' => 'fixed_amount',
+                            'fixed_amount' => ['amount' => $this->shippingFee * 100, 'currency' => $this->currency],
+                            'display_name' => 'Shipping',
+                            'delivery_estimate' => [
+                                'minimum' => ['unit' => 'business_day', 'value' => 1],
+                                'maximum' => ['unit' => 'business_day', 'value' => 7],
+                            ],
                         ],
                     ],
                 ],
-            ],
-        ];
+            ];
+        }
 
         // Create Stripe Tax Rate if tax is applicable (standard Stripe approach)
         $taxRateId = null;
