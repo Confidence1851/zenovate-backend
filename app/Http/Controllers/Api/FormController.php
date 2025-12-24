@@ -129,6 +129,13 @@ class FormController extends Controller
     function orderSheetProducts(Request $request)
     {
         try {
+            // Suppress any output that might interfere with JSON response
+            // Clear output buffer to prevent PHP notices/warnings from corrupting JSON
+            while (ob_get_level() > 0) {
+                ob_end_clean();
+            }
+            ob_start();
+            
             // Auto-detect currency from IP address: CAD for Canada, USD for others
             $info = IpAddressService::info();
             $countryCode = $info["countryCode"] ?? null;
@@ -144,16 +151,21 @@ class FormController extends Controller
             // Store currency in request for ProductResource to use
             $request->merge(['order_sheet_currency' => $currency]);
             
-            return ApiHelper::validResponse(
+            $products = Product::where('status', StatusConstants::ACTIVE)
+                ->where('enabled_for_order_sheet', true)
+                ->with('category')
+                ->orderBy('name', 'asc')
+                ->get();
+            
+            // Clean output buffer before sending response
+            ob_end_clean();
+            
+            $response = ApiHelper::validResponse(
                 'Order sheet products retrieved successfully',
-                ProductResource::collection(
-                    Product::where('status', StatusConstants::ACTIVE)
-                        ->where('enabled_for_order_sheet', true)
-                        ->with('category')
-                        ->orderBy('name', 'asc')
-                        ->get()
-                )
+                ProductResource::collection($products)
             );
+            
+            return $response;
         } catch (GeneralException $e) {
             return ApiHelper::problemResponse(
                 $e->getMessage(),

@@ -38,6 +38,22 @@ class IpAddressService
 
     public static function info($ip_address = null, $force = false)
     {
+        // Check for forced currency override (for testing/simulation)
+        // Set FORCE_CURRENCY=CAD or FORCE_CURRENCY=USD in .env to override IP detection
+        $forcedCurrency = config('currency.force_currency');
+        if ($forcedCurrency) {
+            $currency = strtoupper($forcedCurrency);
+            $countryCode = $currency === 'CAD' ? 'CA' : 'US';
+            $country = $currency === 'CAD' ? 'Canada' : 'United States';
+            
+            return [
+                'status' => 'success',
+                'country' => $country,
+                'countryCode' => $countryCode,
+                'currency' => $currency,
+            ];
+        }
+
         $ip_address = $ip_address ?? request()->ip();
         $key = "location_country_{$ip_address}";
 

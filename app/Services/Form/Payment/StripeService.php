@@ -207,31 +207,9 @@ class StripeService
             : 0;
 
         $discountCode = $this->payment->discount_code ?? null;
-        $isMultiProduct = in_array($this->payment->order_type, ['order_sheet', 'cart']);
-
-        // For order sheets and cart checkouts with discounts, add shipping as a line item so discount applies to it
-        if ($isMultiProduct && $discountAmount > 0 && $discountCode && $this->shippingFee > 0) {
-            // Add shipping as a line item so the coupon applies to it
-            // Note: Tax is NOT applied to shipping - only to products
-            $shipping_line_item = [
-                'price_data' => [
-                    'currency' => $this->currency,
-                    'unit_amount' => (int) round($this->shippingFee * 100),
-                    'product_data' => [
-                        'name' => 'Shipping (1-7 business days)',
-                    ]
-                ],
-                'quantity' => 1,
-            ];
-
-            // Do NOT apply tax rate to shipping - tax only applies to products
-            $line_items[] = $shipping_line_item;
-
-            // Don't use shipping_options when shipping is a line item
-            $shipping_info = [
-                'shipping_address_collection' => ['allowed_countries' => ["CA", "US"]],
-            ];
-        }
+        // Shipping should always be a shipping_option, not a line item
+        // Discount applies to products only, not shipping
+        // This matches the backend calculation where discount is applied to subtotal only
 
         $checkout_data["line_items"] = $line_items;
 
