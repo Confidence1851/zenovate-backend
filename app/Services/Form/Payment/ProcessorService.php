@@ -132,6 +132,7 @@ class ProcessorService
         if ($formSession && $formSession->isDirectCheckout()) {
             // Direct checkout redirects - use SITE URL
             $siteUrl = rtrim(config('frontend.site_url'), '/');
+            
             if ($payment->status === StatusConstants::SUCCESSFUL) {
                 $redirect_url = $siteUrl . "/checkout/success?ref={$payment->reference}";
             } elseif ($payment->status === StatusConstants::CANCELLED) {

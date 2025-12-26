@@ -88,6 +88,8 @@ class DirectCheckoutController extends Controller
                 'discount_code' => 'nullable|string',
                 'checkout_id' => 'nullable|string',
                 'apply_discount_only' => 'nullable|boolean',
+                'currency' => 'nullable|string|in:USD,CAD',
+                'source_path' => 'nullable|string|max:255',
             ];
 
             if (! $isApplyDiscountOnly) {
@@ -118,7 +120,9 @@ class DirectCheckoutController extends Controller
                 $validated['additional_information'] ?? null,
                 $validated['discount_code'] ?? null,
                 $validated['checkout_id'] ?? null,
-                $isApplyDiscountOnly
+                $isApplyDiscountOnly,
+                $validated['currency'] ?? null,
+                $validated['source_path'] ?? null
             );
 
             return ApiHelper::validResponse(
@@ -249,10 +253,14 @@ class DirectCheckoutController extends Controller
             'additional_information' => $formSession->metadata['raw']['additional_information'] ?? null,
         ];
 
+        // Get source path from formSession metadata for redirect purposes
+        $sourcePath = $formSession->metadata['source_path'] ?? '/products';
+        
         $data = [
             'order_type' => $orderType,
             'reference' => $payment->reference,
             'status' => $payment->status,
+            'source_path' => $sourcePath,
             'products' => $products,
             'totals' => [
                 'sub_total' => $subTotal,

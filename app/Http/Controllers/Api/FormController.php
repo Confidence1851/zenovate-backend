@@ -137,20 +137,26 @@ class FormController extends Controller
             }
             ob_start();
 
-            // Determine currency based on config
-            $useLocationPricing = config('order-sheet.use_location_pricing', false);
-            $currency = config('order-sheet.currency', 'USD');
+            // Check if currency is passed as a query parameter (from URL-based routing)
+            $requestedCurrency = $request->query('currency');
+            if ($requestedCurrency && in_array(strtoupper($requestedCurrency), ['USD', 'CAD'])) {
+                $currency = strtoupper($requestedCurrency);
+            } else {
+                // Fall back to config-based currency detection
+                $useLocationPricing = config('order-sheet.use_location_pricing', false);
+                $currency = config('order-sheet.currency', 'USD');
 
-            if ($useLocationPricing) {
-                // Auto-detect currency from IP address: CAD for Canada, USD for others
-                $info = IpAddressService::info();
-                $countryCode = $info['countryCode'] ?? null;
-                $country = $info['country'] ?? null;
+                if ($useLocationPricing) {
+                    // Auto-detect currency from IP address: CAD for Canada, USD for others
+                    $info = IpAddressService::info();
+                    $countryCode = $info['countryCode'] ?? null;
+                    $country = $info['country'] ?? null;
 
-                if (strtolower($countryCode ?? '') === 'ca' || strtolower($country ?? '') === 'canada') {
-                    $currency = $info['currency'] ?? 'CAD';
-                } else {
-                    $currency = $info['currency'] ?? 'USD';
+                    if (strtolower($countryCode ?? '') === 'ca' || strtolower($country ?? '') === 'canada') {
+                        $currency = $info['currency'] ?? 'CAD';
+                    } else {
+                        $currency = $info['currency'] ?? 'USD';
+                    }
                 }
             }
 

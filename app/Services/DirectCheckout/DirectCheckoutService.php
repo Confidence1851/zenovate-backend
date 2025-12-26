@@ -450,7 +450,9 @@ class DirectCheckoutService
         ?string $additionalInformation = null,
         ?string $discountCode = null,
         ?string $checkoutId = null,
-        bool $applyDiscountOnly = false
+        bool $applyDiscountOnly = false,
+        ?string $currency = null,
+        ?string $sourcePath = null
     ): array {
         // Handle discount-only update on existing checkout
         if ($applyDiscountOnly && $checkoutId) {
@@ -472,8 +474,16 @@ class DirectCheckoutService
         // Find or create user by email
         $user = $this->findOrCreateUser($firstName, $lastName, $email);
 
-        // Use location field for currency detection: CAD for Canada, USD for others
-        $geoData = $this->getGeoDataFromLocation($location);
+        // Use passed currency if provided, otherwise use location field for currency detection
+        if ($currency && in_array(strtoupper($currency), ['USD', 'CAD'])) {
+            $geoData = [
+                'currency' => strtoupper($currency),
+                'country_code' => strtoupper($currency) === 'CAD' ? 'CA' : 'US',
+                'country' => strtoupper($currency) === 'CAD' ? 'Canada' : 'United States',
+            ];
+        } else {
+            $geoData = $this->getGeoDataFromLocation($location);
+        }
 
         // Load all products and calculate totals
         $productModels = [];
@@ -552,15 +562,22 @@ class DirectCheckoutService
             $accountNumber,
             $location,
             $shippingAddress,
-            $additionalInformation
+            $additionalInformation,
+            $sourcePath,
+            $geoData['currency']
         );
 
         // Create checkout data
         $checkoutId = 'order_sheet_'.uniqid();
+        
+        // Determine redirect path: use source_path if provided, otherwise default based on currency
+        $redirectPath = $sourcePath ?? ($geoData['currency'] === 'CAD' ? '/cccportal/order' : '/pinksky/order');
+        
         $checkoutData = [
             'checkout_id' => $checkoutId,
             'form_session_id' => $formSession->id,
             'order_type' => 'order_sheet',
+            'source_path' => $redirectPath,
             'products' => array_map(function ($item) {
                 return [
                     'product_id' => $item['product']->id,
@@ -619,7 +636,9 @@ class DirectCheckoutService
         string $accountNumber,
         string $location,
         ?string $shippingAddress,
-        ?string $additionalInformation
+        ?string $additionalInformation,
+        ?string $sourcePath = null,
+        ?string $currency = null
     ): FormSession {
         $selectedProducts = array_map(function ($item) {
             return [
@@ -628,6 +647,9 @@ class DirectCheckoutService
                 'quantity' => $item['quantity'],
             ];
         }, $productModels);
+
+        // Determine redirect path: use source_path if provided, otherwise default based on currency
+        $redirectPath = $sourcePath ?? ($currency === 'CAD' ? '/cccportal/order' : '/pinksky/order');
 
         return FormSession::create([
             'status' => StatusConstants::PENDING,
@@ -638,6 +660,7 @@ class DirectCheckoutService
                 'user_agent' => request()->userAgent(),
                 'location' => null,
                 'order_type' => 'order_sheet',
+                'source_path' => $redirectPath,
                 'raw' => [
                     'firstName' => $firstName,
                     'lastName' => $lastName,
