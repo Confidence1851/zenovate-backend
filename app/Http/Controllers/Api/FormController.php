@@ -12,9 +12,9 @@ use App\Http\Resources\ProductResource;
 use App\Models\FormSession;
 use App\Models\FormSessionActivity;
 use App\Models\Product;
+use App\Services\Form\Payment\ProcessorService;
 use App\Services\Form\Session\StartService;
 use App\Services\Form\Session\UpdateService;
-use App\Services\Form\Payment\ProcessorService;
 use App\Services\Form\Session\WebhookService;
 use App\Services\General\IpAddressService;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -24,13 +24,14 @@ use Throwable;
 
 class FormController extends Controller
 {
-    function startSession(Request $request)
+    public function startSession(Request $request)
     {
         try {
             $session = (new StartService)->handle($request->all());
+
             return ApiHelper::validResponse(
                 'Session started successfully',
-                ["id" => $session->id]
+                ['id' => $session->id]
             );
         } catch (ValidationException $e) {
             return ApiHelper::inputErrorResponse(
@@ -49,13 +50,14 @@ class FormController extends Controller
         }
     }
 
-    function updateSession(Request $request)
+    public function updateSession(Request $request)
     {
         try {
             $data = (new UpdateService)->handle($request->all());
-            if (!empty($p = $data["products"] ?? null)) {
-                $data["products"] = ProductResource::collection($p);
+            if (! empty($p = $data['products'] ?? null)) {
+                $data['products'] = ProductResource::collection($p);
             }
+
             return ApiHelper::validResponse(
                 'Session updated successfully',
                 $data
@@ -77,12 +79,11 @@ class FormController extends Controller
         }
     }
 
-
-    function paymentCallback(Request $request, $payment_id, $status)
+    public function paymentCallback(Request $request, $payment_id, $status)
     {
         try {
-            $request["payment_id"] = $payment_id;
-            $request["status"] = ucfirst($status);
+            $request['payment_id'] = $payment_id;
+            $request['status'] = ucfirst($status);
 
             // All payments now use form sessions (both form and direct checkouts)
             // The booking_type field on form session determines the redirect logic
@@ -106,7 +107,7 @@ class FormController extends Controller
         }
     }
 
-    function productIndex()
+    public function productIndex()
     {
         try {
 
@@ -126,7 +127,7 @@ class FormController extends Controller
         }
     }
 
-    function orderSheetProducts(Request $request)
+    public function orderSheetProducts(Request $request)
     {
         try {
             // Suppress any output that might interfere with JSON response
@@ -135,36 +136,41 @@ class FormController extends Controller
                 ob_end_clean();
             }
             ob_start();
-            
-            // Auto-detect currency from IP address: CAD for Canada, USD for others
-            $info = IpAddressService::info();
-            $countryCode = $info["countryCode"] ?? null;
-            $country = $info["country"] ?? null;
-            
-            // CAD for Canada, USD for others
-            if (strtolower($countryCode ?? '') === 'ca' || strtolower($country ?? '') === 'canada') {
-                $currency = $info["currency"] ?? "CAD";
-            } else {
-                $currency = $info["currency"] ?? "USD";
+
+            // Determine currency based on config
+            $useLocationPricing = config('order-sheet.use_location_pricing', false);
+            $currency = config('order-sheet.currency', 'USD');
+
+            if ($useLocationPricing) {
+                // Auto-detect currency from IP address: CAD for Canada, USD for others
+                $info = IpAddressService::info();
+                $countryCode = $info['countryCode'] ?? null;
+                $country = $info['country'] ?? null;
+
+                if (strtolower($countryCode ?? '') === 'ca' || strtolower($country ?? '') === 'canada') {
+                    $currency = $info['currency'] ?? 'CAD';
+                } else {
+                    $currency = $info['currency'] ?? 'USD';
+                }
             }
-            
+
             // Store currency in request for ProductResource to use
             $request->merge(['order_sheet_currency' => $currency]);
-            
+
             $products = Product::where('status', StatusConstants::ACTIVE)
                 ->where('enabled_for_order_sheet', true)
                 ->with('category')
                 ->orderBy('name', 'asc')
                 ->get();
-            
+
             // Clean output buffer before sending response
             ob_end_clean();
-            
+
             $response = ApiHelper::validResponse(
                 'Order sheet products retrieved successfully',
                 ProductResource::collection($products)
             );
-            
+
             return $response;
         } catch (GeneralException $e) {
             return ApiHelper::problemResponse(
@@ -176,7 +182,7 @@ class FormController extends Controller
         }
     }
 
-    function productsByCategories()
+    public function productsByCategories()
     {
         try {
             // Get all unique categories that have at least one active product
@@ -225,14 +231,14 @@ class FormController extends Controller
         }
     }
 
-    function productInfo($id)
+    public function productInfo($id)
     {
         try {
             return ApiHelper::validResponse(
                 'Product retrieved successfully',
                 ProductResource::make(
                     Product::where('status', StatusConstants::ACTIVE)
-                        ->where("slug", $id)
+                        ->where('slug', $id)
                         ->with('category')
                         ->firstOrFail()
                 )
@@ -252,16 +258,16 @@ class FormController extends Controller
         }
     }
 
-    function info($id)
+    public function info($id)
     {
         try {
-            $form = FormSession::whereIn("status", [
+            $form = FormSession::whereIn('status', [
                 StatusConstants::PENDING,
                 StatusConstants::PROCESSING,
             ])->find($id);
             if (empty($form)) {
                 return ApiHelper::problemResponse(
-                    "Invalid session",
+                    'Invalid session',
                     ApiConstants::NOT_FOUND_ERR_CODE,
                 );
             }
@@ -269,31 +275,32 @@ class FormController extends Controller
             $payments = $form->payments;
             $paid = false;
             $message = null;
-            if (!empty($payments)) {
+            if (! empty($payments)) {
                 $paid = $form->completedPayment()->exists();
                 if ($paid) {
-                    $message = "Your payment was successful, kindly proceed to the next step.";
+                    $message = 'Your payment was successful, kindly proceed to the next step.';
                 } else {
                     $last_payment = $payments[0] ?? null;
-                    if (!empty($last_payment)) {
+                    if (! empty($last_payment)) {
                         if ($last_payment->status == StatusConstants::FAILED) {
-                            $message = "Failed to verify your payment attempt; Kindly try again!";
+                            $message = 'Failed to verify your payment attempt; Kindly try again!';
                         } elseif ($last_payment->status == StatusConstants::CANCELLED) {
-                            $message = "It appears you cancelled  your payment attempt; Kindly try again!";
+                            $message = 'It appears you cancelled  your payment attempt; Kindly try again!';
                         }
                     }
                 }
             }
+
             return ApiHelper::validResponse(
                 'Products retrieved successfully',
                 [
-                    "id" => $form->id,
-                    "formData" => $form->metadata["raw"] ?? null,
-                    "payment" => [
-                        "success" => $paid,
-                        "attempts" => $payments->count(),
-                        "message" => $message ?? null
-                    ]
+                    'id' => $form->id,
+                    'formData' => $form->metadata['raw'] ?? null,
+                    'payment' => [
+                        'success' => $paid,
+                        'attempts' => $payments->count(),
+                        'message' => $message ?? null,
+                    ],
                 ]
             );
         } catch (GeneralException $e) {
@@ -306,10 +313,11 @@ class FormController extends Controller
         }
     }
 
-    function webhookHandler(Request $request)
+    public function webhookHandler(Request $request)
     {
         try {
             $process = (new WebhookService)->handle($request->all());
+
             return ApiHelper::validResponse(
                 'Webhook processed successfully',
             );
@@ -323,21 +331,21 @@ class FormController extends Controller
         }
     }
 
-    function recreate(Request $request, $id)
+    public function recreate(Request $request, $id)
     {
         try {
-            $form = FormSession::where("user_id", $request->user()->id)->find($id);
+            $form = FormSession::where('user_id', $request->user()->id)->find($id);
             if (empty($form)) {
                 return ApiHelper::problemResponse(
-                    "Invalid session",
+                    'Invalid session',
                     ApiConstants::NOT_FOUND_ERR_CODE,
                 );
             }
-            $session = FormSession::whereIn("status", [
+            $session = FormSession::whereIn('status', [
                 StatusConstants::PENDING,
                 StatusConstants::PROCESSING,
             ])
-                ->where("user_id", $request->user()->id)
+                ->where('user_id', $request->user()->id)
                 ->latest()
                 ->first();
 
@@ -346,27 +354,26 @@ class FormController extends Controller
             }
 
             $meta = $session->metadata ?? [];
-            $old_formdata = $form->metadata["raw"];
+            $old_formdata = $form->metadata['raw'];
             // unset($old_formdata["selectedProducts"]);
-            $meta["raw"] = $old_formdata;
+            $meta['raw'] = $old_formdata;
             $session->update([
-                "user_id" => $form->user_id,
-                "metadata" => $meta
+                'user_id' => $form->user_id,
+                'metadata' => $meta,
             ]);
 
-
             FormSessionActivity::firstOrCreate([
-                "form_session_id" => $session->id,
-                "activity" => AppConstants::ACIVITY_RECREATE,
+                'form_session_id' => $session->id,
+                'activity' => AppConstants::ACIVITY_RECREATE,
             ], [
-                "user_id" => $session->user_id,
-                "message" => "Form session created from #" . $form->reference
+                'user_id' => $session->user_id,
+                'message' => 'Form session created from #'.$form->reference,
             ]);
 
             return ApiHelper::validResponse(
                 'Session rereated successfully',
                 [
-                    "id" => $session->id
+                    'id' => $session->id,
                 ]
             );
         } catch (GeneralException $e) {

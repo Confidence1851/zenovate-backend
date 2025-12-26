@@ -3,16 +3,12 @@
 namespace Database\Seeders;
 
 use App\Models\Product;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
 class UpdatePeptidePricingSeeder extends Seeder
 {
     /**
      * Calculate number of pens based on subscription duration in months.
-     *
-     * @param int $frequency
-     * @return int
      */
     private function getPensCount(int $frequency): int
     {
@@ -27,11 +23,6 @@ class UpdatePeptidePricingSeeder extends Seeder
 
     /**
      * Generate display name for subscription plan with pens count.
-     *
-     * @param int $frequency
-     * @param string $unit
-     * @param int $pens
-     * @return string
      */
     private function getDisplayName(int $frequency, string $unit, int $pens): string
     {
@@ -46,6 +37,7 @@ class UpdatePeptidePricingSeeder extends Seeder
         // Format: "X Months (Y Pen)" or "X Months (Y Pens)"
         if ($pens > 0) {
             $penText = $pens === 1 ? 'Pen' : 'Pens';
+
             return "{$frequency} {$unitDisplay} ({$pens} {$penText})";
         }
 
@@ -60,60 +52,60 @@ class UpdatePeptidePricingSeeder extends Seeder
     {
         $pricingData = [
             'Zenfit' => [
-                ['frequency' => 1, 'unit' => 'month', 'values' => ['cad' => 296, 'usd' => 210.16], 'pens' => 0],
-                ['frequency' => 3, 'unit' => 'month', 'values' => ['cad' => 567.44, 'usd' => 567.44], 'pens' => 1],
-                ['frequency' => 6, 'unit' => 'month', 'values' => ['cad' => 1021.37, 'usd' => 1021.37], 'pens' => 2],
-                ['frequency' => 9, 'unit' => 'month', 'values' => ['cad' => 1366.56, 'usd' => 1366.56], 'pens' => 3],
-                ['frequency' => 12, 'unit' => 'month', 'values' => ['cad' => 1822.09, 'usd' => 1822.09], 'pens' => 4],
+                ['frequency' => 1, 'unit' => 'month', 'values' => ['usd' => 197.33, 'cad' => 197.33]],
+                ['frequency' => 3, 'unit' => 'month', 'values' => ['usd' => 592, 'cad' => 592]],
+                ['frequency' => 6, 'unit' => 'month', 'values' => ['usd' => 1065.60, 'cad' => 1065.60]],
+                ['frequency' => 9, 'unit' => 'month', 'values' => ['usd' => 1509.60, 'cad' => 1509.60]],
+                ['frequency' => 12, 'unit' => 'month', 'values' => ['usd' => 2012.80, 'cad' => 2012.80]],
             ],
             'Zenergy' => [
-                ['frequency' => 1, 'unit' => 'month', 'values' => ['cad' => 276, 'usd' => 195.96], 'pens' => 0],
-                ['frequency' => 3, 'unit' => 'month', 'values' => ['cad' => 529.09, 'usd' => 529.09], 'pens' => 1],
-                ['frequency' => 6, 'unit' => 'month', 'values' => ['cad' => 1058.19, 'usd' => 1058.19], 'pens' => 2],
-                ['frequency' => 9, 'unit' => 'month', 'values' => ['cad' => 1499.09, 'usd' => 1499.09], 'pens' => 3],
-                ['frequency' => 12, 'unit' => 'month', 'values' => ['cad' => 1998.79, 'usd' => 1998.79], 'pens' => 4],
+                ['frequency' => 1, 'unit' => 'month', 'values' => ['usd' => 184, 'cad' => 184]],
+                ['frequency' => 3, 'unit' => 'month', 'values' => ['usd' => 552, 'cad' => 552]],
+                ['frequency' => 6, 'unit' => 'month', 'values' => ['usd' => 993.6, 'cad' => 993.6]],
+                ['frequency' => 9, 'unit' => 'month', 'values' => ['usd' => 1407.60, 'cad' => 1407.60]],
+                ['frequency' => 12, 'unit' => 'month', 'values' => ['usd' => 1876.80, 'cad' => 1876.80]],
             ],
             'Zenew' => [
-                ['frequency' => 1, 'unit' => 'month', 'values' => ['cad' => 285, 'usd' => 202.35], 'pens' => 0],
-                ['frequency' => 3, 'unit' => 'month', 'values' => ['cad' => 546.35, 'usd' => 546.35], 'pens' => 1],
-                ['frequency' => 6, 'unit' => 'month', 'values' => ['cad' => 1092.68, 'usd' => 1092.68], 'pens' => 2],
-                ['frequency' => 9, 'unit' => 'month', 'values' => ['cad' => 1547.98, 'usd' => 1547.98], 'pens' => 3],
-                ['frequency' => 12, 'unit' => 'month', 'values' => ['cad' => 2063.97, 'usd' => 2063.97], 'pens' => 4],
+                ['frequency' => 1, 'unit' => 'month', 'values' => ['usd' => 190, 'cad' => 190]],
+                ['frequency' => 3, 'unit' => 'month', 'values' => ['usd' => 570, 'cad' => 570]],
+                ['frequency' => 6, 'unit' => 'month', 'values' => ['usd' => 1026.00, 'cad' => 1026.00]],
+                ['frequency' => 9, 'unit' => 'month', 'values' => ['usd' => 1539.00, 'cad' => 1539.00]],
+                ['frequency' => 12, 'unit' => 'month', 'values' => ['usd' => 1938.00, 'cad' => 1938.00]],
             ],
             'Zenslim' => [
-                ['frequency' => 1, 'unit' => 'month', 'values' => ['cad' => 315, 'usd' => 223.65], 'pens' => 0],
-                ['frequency' => 3, 'unit' => 'month', 'values' => ['cad' => 603.85, 'usd' => 603.85], 'pens' => 1],
-                ['frequency' => 6, 'unit' => 'month', 'values' => ['cad' => 1207.70, 'usd' => 1207.70], 'pens' => 2],
-                ['frequency' => 9, 'unit' => 'month', 'values' => ['cad' => 1710.92, 'usd' => 1710.92], 'pens' => 3],
-                ['frequency' => 12, 'unit' => 'month', 'values' => ['cad' => 2281.23, 'usd' => 2281.23], 'pens' => 4],
+                ['frequency' => 1, 'unit' => 'month', 'values' => ['usd' => 210, 'cad' => 210]],
+                ['frequency' => 3, 'unit' => 'month', 'values' => ['usd' => 630, 'cad' => 630]],
+                ['frequency' => 6, 'unit' => 'month', 'values' => ['usd' => 1134.00, 'cad' => 1134.00]],
+                ['frequency' => 9, 'unit' => 'month', 'values' => ['usd' => 1606.50, 'cad' => 1606.50]],
+                ['frequency' => 12, 'unit' => 'month', 'values' => ['usd' => 2142.00, 'cad' => 2142.00]],
             ],
             'Zenluma' => [
-                ['frequency' => 1, 'unit' => 'month', 'values' => ['cad' => 272, 'usd' => 193.12], 'pens' => 0],
-                ['frequency' => 3, 'unit' => 'month', 'values' => ['cad' => 521.42, 'usd' => 521.42], 'pens' => 1],
-                ['frequency' => 6, 'unit' => 'month', 'values' => ['cad' => 1042.84, 'usd' => 1042.84], 'pens' => 2],
-                ['frequency' => 9, 'unit' => 'month', 'values' => ['cad' => 1477.37, 'usd' => 1477.37], 'pens' => 3],
-                ['frequency' => 12, 'unit' => 'month', 'values' => ['cad' => 1969.82, 'usd' => 1969.82], 'pens' => 4],
+                ['frequency' => 1, 'unit' => 'month', 'values' => ['usd' => 181.33, 'cad' => 181.33]],
+                ['frequency' => 3, 'unit' => 'month', 'values' => ['usd' => 544, 'cad' => 544]],
+                ['frequency' => 6, 'unit' => 'month', 'values' => ['usd' => 979.2, 'cad' => 979.2]],
+                ['frequency' => 9, 'unit' => 'month', 'values' => ['usd' => 1387.20, 'cad' => 1387.20]],
+                ['frequency' => 12, 'unit' => 'month', 'values' => ['usd' => 1849.60, 'cad' => 1849.60]],
             ],
             'ZenCover' => [
-                ['frequency' => 1, 'unit' => 'month', 'values' => ['cad' => 307, 'usd' => 217.97], 'pens' => 0],
-                ['frequency' => 3, 'unit' => 'month', 'values' => ['cad' => 588.51, 'usd' => 588.51], 'pens' => 1],
-                ['frequency' => 6, 'unit' => 'month', 'values' => ['cad' => 1177.03, 'usd' => 1177.03], 'pens' => 2],
-                ['frequency' => 9, 'unit' => 'month', 'values' => ['cad' => 1961.73, 'usd' => 1961.73], 'pens' => 3],
-                ['frequency' => 12, 'unit' => 'month', 'values' => ['cad' => 2223.29, 'usd' => 2223.29], 'pens' => 4],
+                ['frequency' => 1, 'unit' => 'month', 'values' => ['usd' => 204.67, 'cad' => 204.67]],
+                ['frequency' => 3, 'unit' => 'month', 'values' => ['usd' => 614, 'cad' => 614]],
+                ['frequency' => 6, 'unit' => 'month', 'values' => ['usd' => 1105.20, 'cad' => 1105.20]],
+                ['frequency' => 9, 'unit' => 'month', 'values' => ['usd' => 1565.70, 'cad' => 1565.70]],
+                ['frequency' => 12, 'unit' => 'month', 'values' => ['usd' => 2087.60, 'cad' => 2087.60]],
             ],
             'Zenlean' => [
-                ['frequency' => 1, 'unit' => 'month', 'values' => ['cad' => 282, 'usd' => 200.22], 'pens' => 0],
-                ['frequency' => 3, 'unit' => 'month', 'values' => ['cad' => 540.60, 'usd' => 540.60], 'pens' => 1],
-                ['frequency' => 6, 'unit' => 'month', 'values' => ['cad' => 1081.18, 'usd' => 1081.18], 'pens' => 2],
-                ['frequency' => 9, 'unit' => 'month', 'values' => ['cad' => 1531.68, 'usd' => 1531.68], 'pens' => 3],
-                ['frequency' => 12, 'unit' => 'month', 'values' => ['cad' => 2042.24, 'usd' => 2042.24], 'pens' => 4],
+                ['frequency' => 1, 'unit' => 'month', 'values' => ['usd' => 188, 'cad' => 188]],
+                ['frequency' => 3, 'unit' => 'month', 'values' => ['usd' => 564, 'cad' => 564]],
+                ['frequency' => 6, 'unit' => 'month', 'values' => ['usd' => 1015.20, 'cad' => 1015.20]],
+                ['frequency' => 9, 'unit' => 'month', 'values' => ['usd' => 1438.20, 'cad' => 1438.20]],
+                ['frequency' => 12, 'unit' => 'month', 'values' => ['usd' => 1917.60, 'cad' => 1917.60]],
             ],
             'Zenmune' => [
-                ['frequency' => 1, 'unit' => 'month', 'values' => ['cad' => 313, 'usd' => 222.23], 'pens' => 0],
-                ['frequency' => 3, 'unit' => 'month', 'values' => ['cad' => 599.99, 'usd' => 599.99], 'pens' => 1],
-                ['frequency' => 6, 'unit' => 'month', 'values' => ['cad' => 1199.99, 'usd' => 1199.99], 'pens' => 2],
-                ['frequency' => 9, 'unit' => 'month', 'values' => ['cad' => 1700.06, 'usd' => 1700.06], 'pens' => 3],
-                ['frequency' => 12, 'unit' => 'month', 'values' => ['cad' => 2266.75, 'usd' => 2266.75], 'pens' => 4],
+                ['frequency' => 1, 'unit' => 'month', 'values' => ['usd' => 208.67, 'cad' => 208.67]],
+                ['frequency' => 3, 'unit' => 'month', 'values' => ['usd' => 626, 'cad' => 626]],
+                ['frequency' => 6, 'unit' => 'month', 'values' => ['usd' => 1126.80, 'cad' => 1126.80]],
+                ['frequency' => 9, 'unit' => 'month', 'values' => ['usd' => 1596.30, 'cad' => 1596.30]],
+                ['frequency' => 12, 'unit' => 'month', 'values' => ['usd' => 2128.40, 'cad' => 2128.40]],
             ],
         ];
 
@@ -121,25 +113,7 @@ class UpdatePeptidePricingSeeder extends Seeder
             $product = Product::where('name', $productName)->first();
 
             if ($product) {
-                // Ensure pens count and display_name are set for each price entry
-                $updatedPrices = array_map(function ($price) {
-                    $frequency = $price['frequency'] ?? 0;
-                    $unit = $price['unit'] ?? 'month';
-                    
-                    // Calculate pens count if not set
-                    if (!isset($price['pens'])) {
-                        $price['pens'] = $this->getPensCount($frequency);
-                    }
-                    
-                    // Add display_name for subscription plans with month unit
-                    if ($unit === 'month' && $frequency > 0) {
-                        $price['display_name'] = $this->getDisplayName($frequency, $unit, $price['pens']);
-                    }
-                    
-                    return $price;
-                }, $prices);
-
-                $product->price = $updatedPrices;
+                $product->price = $prices;
                 $product->save();
                 $this->command->info("Updated pricing for: {$productName}");
             } else {
@@ -162,31 +136,31 @@ class UpdatePeptidePricingSeeder extends Seeder
         $updatedCount = 0;
 
         foreach ($products as $product) {
-            if (empty($product->price) || !is_array($product->price)) {
+            if (empty($product->price) || ! is_array($product->price)) {
                 continue;
             }
 
             $updated = false;
             $updatedPrices = array_map(function ($price) use (&$updated) {
                 // Only process subscription plans with month unit
-                if (!isset($price['frequency']) || !isset($price['unit']) || $price['unit'] !== 'month') {
+                if (! isset($price['frequency']) || ! isset($price['unit']) || $price['unit'] !== 'month') {
                     return $price;
                 }
 
                 $frequency = (int) $price['frequency'];
-                
+
                 // Calculate pens count if not set
-                if (!isset($price['pens'])) {
+                if (! isset($price['pens'])) {
                     $price['pens'] = $this->getPensCount($frequency);
                     $updated = true;
                 }
-                
+
                 // Add display_name if not set
-                if (!isset($price['display_name'])) {
+                if (! isset($price['display_name'])) {
                     $price['display_name'] = $this->getDisplayName($frequency, $price['unit'], $price['pens']);
                     $updated = true;
                 }
-                
+
                 return $price;
             }, $product->price);
 

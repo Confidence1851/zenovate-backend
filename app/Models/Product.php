@@ -10,8 +10,10 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class Product extends Model
 {
     use SoftDeletes;
+
     protected $guarded = ['id'];
-    protected $casts = ['price' => 'array'];
+
+    protected $casts = ['price' => 'array', 'order_sheet_price' => 'array'];
 
     /**
      * Get all images for this product
@@ -37,55 +39,58 @@ class Product extends Model
         return $this->belongsTo(ProductCategory::class, 'category_id');
     }
 
-    function getLocationPrice($excludeFrequency = null, ?string $currency = null)
+    public function getLocationPrice($excludeFrequency = null, ?string $currency = null, bool $useOrderSheetPrice = false)
     {
         // If currency is not provided, use IP-based detection
         if ($currency === null) {
             $info = IpAddressService::info();
-            $currency = $info["currency"] ?? "USD";
+            $currency = $info['currency'] ?? 'USD';
         }
 
-        if (empty($this->price) || !is_array($this->price)) {
+        // Use order_sheet_price if requested and available, otherwise use regular price
+        $priceData = ($useOrderSheetPrice && ! empty($this->order_sheet_price)) ? $this->order_sheet_price : $this->price;
+
+        if (empty($priceData) || ! is_array($priceData)) {
             return [];
         }
 
         $list = [];
-        foreach ($this->price as $value) {
+        foreach ($priceData as $value) {
             // Filter out excluded frequency if specified
-            if ($excludeFrequency !== null && isset($value["frequency"]) && $value["frequency"] == $excludeFrequency) {
+            if ($excludeFrequency !== null && isset($value['frequency']) && $value['frequency'] == $excludeFrequency) {
                 continue;
             }
 
             $currencyKey = strtolower($currency);
 
             // Check if the requested currency exists, otherwise fall back to USD or first available
-            if (!isset($value["values"][$currencyKey])) {
+            if (! isset($value['values'][$currencyKey])) {
                 // Try USD first (default)
-                if (isset($value["values"]["usd"])) {
-                    $currencyKey = "usd";
-                    $currency = "USD";
-                } elseif (isset($value["values"]["cad"])) {
+                if (isset($value['values']['usd'])) {
+                    $currencyKey = 'usd';
+                    $currency = 'USD';
+                } elseif (isset($value['values']['cad'])) {
                     // Fall back to CAD if USD not available
-                    $currencyKey = "cad";
-                    $currency = "CAD";
+                    $currencyKey = 'cad';
+                    $currency = 'CAD';
                 } else {
                     // Use first available currency
-                    $currencyKey = array_key_first($value["values"]);
+                    $currencyKey = array_key_first($value['values']);
                     $currency = strtoupper($currencyKey);
                 }
             }
 
-            $value["value"] = $value["values"][$currencyKey];
-            $value["currency"] = $currency;
-            unset($value["values"]);
+            $value['value'] = $value['values'][$currencyKey];
+            $value['currency'] = $currency;
+            unset($value['values']);
 
-            $price_id = ["product_id" => $this->id, "value" => $value];
-            $value["id"] = Helper::encrypt(json_encode($price_id));
+            $price_id = ['product_id' => $this->id, 'value' => $value];
+            $value['id'] = Helper::encrypt(json_encode($price_id));
             $list[] = $value;
         }
 
         // Sort by 'value' in ascending order
-        return collect($list)->sortBy("value")->values()->toArray();
+        return collect($list)->sortBy('value')->values()->toArray();
     }
 
     /**
@@ -94,7 +99,7 @@ class Product extends Model
      * Returns placeholder image if no images found
      * Backward compatible: checks product_images table first, then falls back to image_path column
      */
-    function getImageUrls()
+    public function getImageUrls()
     {
         $urls = [];
 
@@ -110,15 +115,15 @@ class Product extends Model
         }
 
         // Fallback to image_path column if no images in table (backward compatibility)
-        if (empty($urls) && !empty($this->image_path)) {
+        if (empty($urls) && ! empty($this->image_path)) {
             $imagePaths = explode(',', $this->image_path);
             foreach ($imagePaths as $path) {
                 $path = trim($path);
-                if (!empty($path)) {
-                    $encrypted = Helper::encrypt_decrypt("encrypt", $path);
+                if (! empty($path)) {
+                    $encrypted = Helper::encrypt_decrypt('encrypt', $path);
                     if ($encrypted) {
                         $baseUrl = config('app.url', 'http://localhost');
-                        $urls[] = rtrim($baseUrl, '/') . '/api/get-file/' . $encrypted;
+                        $urls[] = rtrim($baseUrl, '/').'/api/get-file/'.$encrypted;
                     }
                 }
             }
@@ -127,11 +132,13 @@ class Product extends Model
         // If still no images, use placeholder
         if (empty($urls)) {
             $placeholderPath = 'products/placeholder.png';
-            $encrypted = Helper::encrypt_decrypt("encrypt", $placeholderPath);
+            $encrypted = Helper::encrypt_decrypt('encrypt', $placeholderPath);
             if ($encrypted) {
                 $baseUrl = config('app.url', 'http://localhost');
-                return rtrim($baseUrl, '/') . '/api/get-file/' . $encrypted;
+
+                return rtrim($baseUrl, '/').'/api/get-file/'.$encrypted;
             }
+
             return null;
         }
 
