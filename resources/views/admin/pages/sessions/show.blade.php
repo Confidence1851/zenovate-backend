@@ -210,6 +210,15 @@
                                     <b>Shipping Fee:</b> {{ strtoupper($dto->payment->currency) }}
                                     {{ number_format($dto->payment->shipping_fee ?? 0, 2) }}
                                 </p>
+                                @if (!empty($dto->payment->tax_rate) || !empty($dto->payment->tax_amount))
+                                    <p>
+                                        <b>Tax:</b> {{ !empty($dto->payment->tax_rate) ? number_format($dto->payment->tax_rate, 2) . '%' : 'N/A' }}
+                                    </p>
+                                    <p>
+                                        <b>Tax Amount:</b> {{ strtoupper($dto->payment->currency) }}
+                                        {{ number_format($dto->payment->tax_amount ?? 0, 2) }}
+                                    </p>
+                                @endif
                                 <p>
                                     <b>Total:</b> {{ strtoupper($dto->payment->currency) }}
                                     {{ number_format($dto->payment->total, 2) }}

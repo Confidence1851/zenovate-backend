@@ -57,6 +57,14 @@
                             <p>
                                 <b>Shipping Fee:</b> {{ $payment->getAmount('shipping_fee') ?? 'N/A' }}
                             </p>
+                            @if (!empty($payment->tax_rate) || !empty($payment->tax_amount))
+                                <p>
+                                    <b>Tax:</b> {{ !empty($payment->tax_rate) ? number_format($payment->tax_rate, 2) . '%' : 'N/A' }}
+                                </p>
+                                <p>
+                                    <b>Tax Amount:</b> {{ $payment->getAmount('tax_amount') ?? 'N/A' }}
+                                </p>
+                            @endif
                             <p>
                                 <b>Total:</b> {{ $payment->getAmount('total') ?? 'N/A' }}
                             </p>
