@@ -10,6 +10,23 @@ class PaymentProduct extends Model
     protected $guarded = ['id'];
     protected $casts = ['price' => 'array'];
 
+    protected function serializePriceAttribute($value)
+    {
+        if (is_object($value)) {
+            $value = (array) $value;
+        }
+        return json_encode($value);
+    }
+
+    protected function getPriceAttribute($value)
+    {
+        $price = json_decode($value, true);
+        if (is_object($price)) {
+            $price = (array) $price;
+        }
+        return $price;
+    }
+
     function payment()
     {
         return $this->belongsTo(Payment::class, "payment_id");

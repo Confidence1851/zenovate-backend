@@ -56,9 +56,9 @@ Route::as("api.")->group(function () {
         ->group(function () {
             Route::post('/init', 'init')->name('direct-checkout.init');
             Route::post('/order-sheet/init', 'orderSheetInit')->name('direct-checkout.order-sheet.init');
+            Route::post('/order-sheet/calculate-totals', 'calculateOrderSheetTotals')->name('direct-checkout.order-sheet.calculate-totals');
             Route::post('/cart/init', 'cartInit')->name('direct-checkout.cart.init');
             Route::post('/cart/process', 'processCart')->name('direct-checkout.cart.process');
-            Route::post('/apply-discount', 'applyDiscount')->name('direct-checkout.apply-discount');
             Route::post('/process', 'process')->name('direct-checkout.process');
             Route::get('/checkout/info', 'checkoutInfo')->name('direct-checkout.checkout-info');
             Route::post('/cart/summary', 'cartSummary')->name('direct-checkout.cart-summary');

@@ -78,51 +78,40 @@ class DirectCheckoutController extends Controller
     public function orderSheetInit(Request $request)
     {
         try {
-            $isApplyDiscountOnly = $request->boolean('apply_discount_only', false);
-
-            $rules = [
+            $validated = $request->validate([
                 'products' => 'required|array|min:1',
                 'products.*.product_id' => 'required|integer|exists:products,id',
                 'products.*.price_id' => 'required|string',
                 'products.*.quantity' => 'nullable|integer|min:1',
+                'first_name' => 'required|string|max:255',
+                'last_name' => 'required|string|max:255',
+                'email' => 'required|email|max:255',
+                'phone' => 'required|string|max:255',
+                'account_number' => 'nullable|string|max:255',
+                'location' => 'nullable|string|max:255',
+                'shipping_address' => 'nullable|string',
+                'additional_information' => 'nullable|string',
                 'discount_code' => 'nullable|string',
-                'checkout_id' => 'nullable|string',
-                'apply_discount_only' => 'nullable|boolean',
                 'currency' => 'nullable|string|in:USD,CAD',
                 'source_path' => 'nullable|string|max:255',
-            ];
-
-            if (! $isApplyDiscountOnly) {
-                $rules += [
-                    'first_name' => 'required|string|max:255',
-                    'last_name' => 'required|string|max:255',
-                    'email' => 'required|email|max:255',
-                    'phone' => 'required|string|max:255',
-                    'account_number' => 'nullable|string|max:255',
-                    'location' => 'nullable|string|max:255',
-                    'shipping_address' => 'nullable|string',
-                    'additional_information' => 'nullable|string',
-                ];
-            }
-
-            $validated = $request->validate($rules);
+                'ref' => 'nullable|string|max:255',
+            ]);
 
             $service = new DirectCheckoutService;
             $checkoutData = $service->initializeOrderSheetCheckout(
                 $validated['products'],
-                $validated['first_name'] ?? '',
-                $validated['last_name'] ?? '',
-                $validated['email'] ?? '',
-                $validated['phone'] ?? '',
+                $validated['first_name'],
+                $validated['last_name'],
+                $validated['email'],
+                $validated['phone'],
                 $validated['account_number'] ?? '',
                 $validated['location'] ?? '',
                 $validated['shipping_address'] ?? null,
                 $validated['additional_information'] ?? null,
                 $validated['discount_code'] ?? null,
-                $validated['checkout_id'] ?? null,
-                $isApplyDiscountOnly,
                 $validated['currency'] ?? null,
-                $validated['source_path'] ?? null
+                $validated['source_path'] ?? null,
+                $validated['ref'] ?? null
             );
 
             return ApiHelper::validResponse(
@@ -159,6 +148,57 @@ class DirectCheckoutController extends Controller
             return ApiHelper::problemResponse(
                 'An error occurred while initializing checkout. Please try again later.',
                 ApiConstants::SERVER_ERR_CODE,
+                $request,
+                $e
+            );
+        }
+    }
+
+    /**
+     * Calculate order sheet totals with discount (no side effects)
+     */
+    public function calculateOrderSheetTotals(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                'products' => 'required|array|min:1',
+                'products.*.product_id' => 'required|integer|exists:products,id',
+                'products.*.price_id' => 'required|string',
+                'products.*.quantity' => 'nullable|integer|min:1',
+                'discount_code' => 'nullable|string',
+                'currency' => 'nullable|string|in:USD,CAD',
+                'location' => 'nullable|string|max:255',
+            ]);
+
+            $service = new DirectCheckoutService;
+            $totals = $service->calculateOrderSheetTotals(
+                $validated['products'],
+                $validated['discount_code'] ?? null,
+                $validated['currency'] ?? null,
+                $validated['location'] ?? null
+            );
+
+            return ApiHelper::validResponse(
+                'Order sheet totals calculated successfully',
+                $totals
+            );
+        } catch (ValidationException $e) {
+            return ApiHelper::inputErrorResponse(
+                $e->getMessage(),
+                ApiConstants::VALIDATION_ERR_CODE,
+                $request,
+                $e
+            );
+        } catch (\Exception $e) {
+            Log::error('Order sheet totals calculation failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'request' => $request->all(),
+            ]);
+
+            return ApiHelper::problemResponse(
+                $e->getMessage(),
+                ApiConstants::BAD_REQ_ERR_CODE,
                 $request,
                 $e
             );
@@ -214,6 +254,7 @@ class DirectCheckoutController extends Controller
                     'currency' => $priceData['currency'] ?? $currency,
                     'frequency' => $priceData['frequency'] ?? null,
                     'unit' => $priceData['unit'] ?? null,
+                    'display_name' => $priceData['display_name'] ?? null,
                 ];
                 $products[] = [
                     'product_id' => $product->id,
@@ -279,63 +320,6 @@ class DirectCheckoutController extends Controller
     }
 
     /**
-     * Apply discount code to checkout
-     */
-    public function applyDiscount(Request $request)
-    {
-        try {
-            $validated = $request->validate([
-                'checkout_id' => 'required|string',
-                'discount_code' => 'required|string',
-            ]);
-
-            $service = new DirectCheckoutService;
-            $checkoutData = $service->applyDiscount(
-                $validated['checkout_id'],
-                $validated['discount_code']
-            );
-
-            return ApiHelper::validResponse(
-                'Discount applied successfully',
-                $checkoutData
-            );
-        } catch (ValidationException $e) {
-            return ApiHelper::inputErrorResponse(
-                $e->getMessage(),
-                ApiConstants::VALIDATION_ERR_CODE,
-                $request,
-                $e
-            );
-        } catch (\Exception $e) {
-            Log::error('Direct checkout discount application failed', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-                'request' => $request->all(),
-            ]);
-
-            return ApiHelper::problemResponse(
-                $e->getMessage(),
-                ApiConstants::BAD_REQ_ERR_CODE,
-                $request,
-                $e
-            );
-        } catch (Throwable $e) {
-            Log::error('Direct checkout discount application failed', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-                'request' => $request->all(),
-            ]);
-
-            return ApiHelper::problemResponse(
-                $e->getMessage(),
-                ApiConstants::SERVER_ERR_CODE,
-                $request,
-                $e
-            );
-        }
-    }
-
-    /**
      * Process payment and redirect to Stripe
      */
     public function process(Request $request)
@@ -346,19 +330,29 @@ class DirectCheckoutController extends Controller
                 'recaptcha_token' => 'nullable|string',
             ]);
 
-            // Determine checkout type from cache
-            $cached = cache()->get("direct_checkout_{$validated['checkout_id']}");
-            $orderType = $cached['order_type'] ?? 'regular';
+            // Determine checkout type from cache or database
+            $checkoutId = $validated['checkout_id'];
+            $cached = cache()->get("direct_checkout_{$checkoutId}");
+            $orderType = $cached['order_type'] ?? null;
+            
+            // If not in cache and this is a resumed payment (ref_*), get order_type from database
+            if (! $orderType && str_starts_with($checkoutId, 'ref_')) {
+                $ref = substr($checkoutId, 4); // Remove 'ref_' prefix
+                $existingPayment = \App\Models\Payment::where('reference', $ref)->first();
+                $orderType = $existingPayment?->order_type ?? 'regular';
+            }
+            
+            $orderType = $orderType ?? 'regular';
 
             $service = new DirectCheckoutService;
             $recaptchaToken = $validated['recaptcha_token'] ?? null;
 
             if ($orderType === 'order_sheet') {
-                $result = $service->processOrderSheetPayment($validated['checkout_id'], $recaptchaToken);
+                $result = $service->processOrderSheetPayment($checkoutId, $recaptchaToken);
             } elseif ($orderType === 'cart') {
-                $result = $service->processCartPayment($validated['checkout_id'], $recaptchaToken);
+                $result = $service->processCartPayment($checkoutId, $recaptchaToken);
             } else {
-                $result = $service->processPayment($validated['checkout_id'], $recaptchaToken);
+                $result = $service->processPayment($checkoutId, $recaptchaToken);
             }
 
             return ApiHelper::validResponse(
@@ -648,6 +642,7 @@ class DirectCheckoutController extends Controller
                 'shipping_address' => 'nullable|string',
                 'additional_information' => 'nullable|string',
                 'discount_code' => 'nullable|string',
+                'ref' => 'nullable|string|max:255',
             ]);
 
             $service = new DirectCheckoutService;
@@ -661,8 +656,12 @@ class DirectCheckoutController extends Controller
                 $validated['location'] ?? '',
                 $validated['shipping_address'] ?? null,
                 $validated['additional_information'] ?? null,
-                $validated['discount_code'] ?? null
+                $validated['discount_code'] ?? null,
+                $validated['ref'] ?? null
             );
+
+            // Remove internal flags before sending to frontend
+            $checkoutData = $this->cleanCheckoutData($checkoutData);
 
             return ApiHelper::validResponse(
                 'Cart checkout initialized successfully',
@@ -801,5 +800,19 @@ class DirectCheckoutController extends Controller
                 $e
             );
         }
+    }
+
+    /**
+     * Remove internal flags from checkout data before sending to frontend
+     */
+    private function cleanCheckoutData($checkoutData)
+    {
+        // Remove any internal debugging or system fields that shouldn't be exposed
+        if (is_array($checkoutData)) {
+            unset($checkoutData['_internal']);
+            unset($checkoutData['_debug']);
+            unset($checkoutData['_system']);
+        }
+        return $checkoutData;
     }
 }

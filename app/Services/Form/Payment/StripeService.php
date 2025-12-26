@@ -185,12 +185,18 @@ class StripeService
             $originalAmount = $product->selected_price["value"];
             $quantity = isset($product->quantity) ? (int) $product->quantity : 1;
 
+            // Combine product name with display_name if available
+            $displayName = $product->name;
+            if (isset($product->selected_price['display_name'])) {
+                $displayName = $product->name . ' (' . $product->selected_price['display_name'] . ')';
+            }
+
             $line_item = [
                 'price_data' => [
                     'currency' => $this->currency,
                     'unit_amount' => (int) round($originalAmount * 100),
                     'product_data' => [
-                        'name' => $product->name,
+                        'name' => $displayName,
                         // 'images' => [$image],
                     ]
                 ],

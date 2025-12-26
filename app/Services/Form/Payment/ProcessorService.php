@@ -34,6 +34,8 @@ class ProcessorService
             "currency" => $currency,
             "total" => $data["total"],
             "shipping_fee" => $data["shipping_fee"],
+            "tax_rate" => $data["tax_rate"] ?? 0,
+            "tax_amount" => $data["tax_amount"] ?? 0,
             "address" => $isMultiProduct ? ($customerInfo["shipping_address"] ?? $customerInfo["location"] ?? null) : ($metadata["streetAddress"] ?? null),
             "postal_code" => $isMultiProduct ? null : ($metadata["postalZipCode"] ?? null),
             "city" => $isMultiProduct ? null : ($metadata["city"] ?? null),
@@ -52,11 +54,26 @@ class ProcessorService
 
         foreach ($data["products"] as $product) {
             $quantity = isset($product->quantity) ? (int) $product->quantity : 1;
-            PaymentProduct::firstOrCreate([
+            $price = $product->selected_price;
+            if (is_array($price)) {
+                // already fine
+            } elseif (is_object($price)) {
+                $price = (array) $price;
+            } elseif (is_string($price)) {
+                $decoded = json_decode($price, true);
+                if (is_array($decoded)) {
+                    $price = $decoded;
+                } else {
+                    $price = [];
+                }
+            } else {
+                $price = [];
+            }
+            // Create separate payment product entries for each product, even if same product_id with different prices
+            PaymentProduct::create([
                 "payment_id" => $payment->id,
                 "product_id" => $product->id,
-            ], [
-                "price" => $product->selected_price,
+                "price" => $price,
                 "quantity" => $quantity,
             ]);
         }
@@ -132,7 +149,7 @@ class ProcessorService
         if ($formSession && $formSession->isDirectCheckout()) {
             // Direct checkout redirects - use SITE URL
             $siteUrl = rtrim(config('frontend.site_url'), '/');
-            
+
             if ($payment->status === StatusConstants::SUCCESSFUL) {
                 $redirect_url = $siteUrl . "/checkout/success?ref={$payment->reference}";
             } elseif ($payment->status === StatusConstants::CANCELLED) {

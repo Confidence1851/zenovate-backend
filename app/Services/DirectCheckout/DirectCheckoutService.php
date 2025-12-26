@@ -61,7 +61,7 @@ class DirectCheckoutService
         $total = $subTotal + $shippingFee + $taxAmount;
 
         // Create checkout data
-        $checkoutId = 'checkout_'.uniqid();
+        $checkoutId = 'checkout_' . uniqid();
         $checkoutData = [
             'checkout_id' => $checkoutId,
             'form_session_id' => $formSession->id,
@@ -161,96 +161,13 @@ class DirectCheckoutService
      */
     private function generateReference(): string
     {
-        $code = 'DC-'.Helper::getRandomToken(6, true); // DC = Direct Checkout
+        $code = 'DC-' . Helper::getRandomToken(6, true); // DC = Direct Checkout
         $check = FormSession::where('reference', $code)->exists();
         if ($check) {
             return $this->generateReference();
         }
 
         return $code;
-    }
-
-    /**
-     * Apply discount to an existing checkout without creating a FormSession
-     * Used when user applies discount before proceeding to final checkout
-     */
-    private function applyDiscountToExistingCheckout(?string $checkoutId, ?string $discountCode): array
-    {
-        if (! $checkoutId || ! $discountCode) {
-            throw new \Exception('Missing checkout_id or discount_code');
-        }
-
-        $checkoutData = cache()->get("direct_checkout_{$checkoutId}");
-        if (! $checkoutData) {
-            throw new \Exception('Checkout session expired or not found');
-        }
-
-        $discountService = new DiscountCodeService;
-        $discountModel = $discountService->validate($discountCode);
-        if (! $discountModel) {
-            throw new \Exception('Invalid or expired discount code');
-        }
-
-        $discountAmount = $discountService->calculateDiscount($checkoutData['sub_total'], $discountModel);
-
-        $discountedSubtotal = max(0, $checkoutData['sub_total'] - $discountAmount);
-
-        $shippingFee = $checkoutData['shipping_fee'];
-        if ($discountedSubtotal == 0 && $discountAmount > 0) {
-            $shippingFee = 0;
-        }
-
-        $taxAmount = $discountedSubtotal * ($checkoutData['tax_rate'] / 100);
-
-        $checkoutData['discount_code'] = $discountModel->code;
-        $checkoutData['discount_amount'] = round($discountAmount, 2);
-        $checkoutData['tax_amount'] = round($taxAmount, 2);
-        $checkoutData['shipping_fee'] = round($shippingFee, 2);
-        $checkoutData['total'] = round($discountedSubtotal + $shippingFee + $taxAmount, 2);
-
-        cache()->put("direct_checkout_{$checkoutId}", $checkoutData, now()->addHours(2));
-
-        return $checkoutData;
-    }
-
-    /**
-     * Apply discount code to checkout
-     */
-    public function applyDiscount(string $checkoutId, string $discountCode): array
-    {
-        $checkoutData = cache()->get("direct_checkout_{$checkoutId}");
-
-        if (! $checkoutData) {
-            throw new \Exception('Checkout session expired or not found');
-        }
-
-        // Apply discount using DiscountCodeService (on subtotal only, not shipping)
-        $discountService = new DiscountCodeService;
-        $discountModel = $discountService->validate($discountCode);
-        if (! $discountModel) {
-            throw new \Exception('Invalid or expired discount code');
-        }
-
-        // Calculate discount on subtotal only
-        $discountAmount = $discountService->calculateDiscount($checkoutData['sub_total'], $discountModel);
-
-        // Increment usage count
-        $discountModel->incrementUsage();
-
-        // Apply discount to subtotal only
-        $discountedSubtotal = max(0, $checkoutData['sub_total'] - $discountAmount);
-
-        // Calculate tax on discounted subtotal only (not including shipping)
-        $taxAmount = $discountedSubtotal * ($checkoutData['tax_rate'] / 100);
-        $checkoutData['tax_amount'] = round($taxAmount, 2);
-        $checkoutData['discount_code'] = $discountModel->code;
-        $checkoutData['discount_amount'] = round($discountAmount, 2);
-        $checkoutData['total'] = round($discountedSubtotal + $checkoutData['shipping_fee'] + $taxAmount, 2);
-
-        // Update cache
-        cache()->put("direct_checkout_{$checkoutId}", $checkoutData, now()->addHours(2));
-
-        return $checkoutData;
     }
 
     /**
@@ -300,6 +217,63 @@ class DirectCheckoutService
         }
 
         $checkoutData = cache()->get("direct_checkout_{$checkoutId}");
+
+        // If not in cache and this is a resumed payment (ref_*), rebuild from database
+        if (! $checkoutData && str_starts_with($checkoutId, 'ref_')) {
+            $ref = substr($checkoutId, 4); // Remove 'ref_' prefix
+            $existingPayment = \App\Models\Payment::where('reference', $ref)->first();
+            if (! $existingPayment) {
+                throw new \Exception('Checkout session expired or not found');
+            }
+
+            // Rebuild checkout data from payment record
+            $paymentProducts = $existingPayment->paymentProducts()->with('product')->get();
+            $productsData = $paymentProducts->map(function ($paymentProduct) {
+                $rawPrice = $paymentProduct->getOriginal('price');
+                if (is_array($rawPrice)) {
+                    $price = $rawPrice;
+                } elseif (is_string($rawPrice)) {
+                    $decoded = json_decode($rawPrice, true);
+                    if (is_array($decoded)) {
+                        $price = $decoded;
+                    } else {
+                        $price = [];
+                    }
+                } else {
+                    $price = [];
+                }
+                return [
+                     'product_id' => $paymentProduct->product_id,
+                     'id' => $paymentProduct->product_id,
+                     'name' => $paymentProduct->product->name ?? 'Unknown Product',
+                     'quantity' => $paymentProduct->quantity,
+                     'selected_price' => $price,
+                 ];
+            });
+
+            $firstProduct = $productsData->first();
+             $checkoutData = [
+                 'checkout_id' => $checkoutId,
+                 'form_session_id' => $existingPayment->form_session_id,
+                 'order_type' => 'regular',
+                 'product_id' => $firstProduct['id'] ?? null,
+                 'product' => [
+                     'id' => $firstProduct['id'] ?? null,
+                     'name' => $firstProduct['name'] ?? null,
+                     'selected_price' => $firstProduct['selected_price'] ?? null,
+                 ],
+                'sub_total' => $existingPayment->sub_total,
+                'discount_code' => $existingPayment->discount_code,
+                'discount_amount' => $existingPayment->discount_amount ?? 0,
+                'tax_rate' => $existingPayment->tax_rate ?? 0,
+                'tax_amount' => $existingPayment->tax_amount ?? 0,
+                'shipping_fee' => $existingPayment->shipping_fee,
+                'total' => $existingPayment->total,
+                'currency' => $existingPayment->currency,
+                'country_code' => 'US',
+                'country' => 'United States',
+            ];
+        }
 
         if (! $checkoutData) {
             throw new \Exception('Checkout session expired or not found');
@@ -436,7 +410,112 @@ class DirectCheckoutService
     }
 
     /**
+     * Calculate order sheet totals with discount (no form session creation)
+     * Used for discount preview before checkout
+     */
+    public function calculateOrderSheetTotals(
+        array $products,
+        ?string $discountCode = null,
+        ?string $currency = null,
+        ?string $location = null
+    ): array {
+        // Load all products and calculate totals
+        $productModels = [];
+        $subTotal = 0;
+        $totalTax = 0;
+        $defaultShippingFee = (float) config('checkout.shipping_fee', 60);
+
+        foreach ($products as $productData) {
+            $product = Product::findOrFail($productData['product_id']);
+
+            // Decrypt price_id to get price information
+            $priceData = json_decode(Helper::decrypt($productData['price_id']), true);
+            if (! $priceData || $priceData['product_id'] != $product->id) {
+                throw new \Exception("Invalid price ID for product {$product->id}");
+            }
+
+            $selectedPrice = $priceData['value'];
+            $product->selected_price = $selectedPrice;
+            $quantity = (int) ($productData['quantity'] ?? 1);
+
+            $lineTotal = $selectedPrice['value'] * $quantity;
+            $subTotal += $lineTotal;
+
+            // Calculate tax for this product line
+            $taxRate = $this->getTaxRate($product);
+            $totalTax += $lineTotal * ($taxRate / 100);
+
+            $productModels[] = [
+                'product' => $product,
+                'price_id' => $productData['price_id'],
+                'quantity' => $quantity,
+                'selected_price' => $selectedPrice,
+            ];
+        }
+
+        // Get geo data for currency
+        $geoData = $this->getGeoDataFromLocation($location);
+        if ($currency && in_array(strtoupper($currency), ['USD', 'CAD'])) {
+            $geoData = [
+                'currency' => strtoupper($currency),
+                'country_code' => strtoupper($currency) === 'CAD' ? 'CA' : 'US',
+                'country' => strtoupper($currency) === 'CAD' ? 'Canada' : 'United States',
+            ];
+        }
+
+        // Calculate shipping
+        $shippingFee = $this->calculateOrderSheetShippingFee($subTotal, $defaultShippingFee);
+
+        // Apply discount if provided
+        $discountAmount = 0;
+        if ($discountCode) {
+            $discountService = new DiscountCodeService;
+            $discountModel = $discountService->validate($discountCode);
+            if ($discountModel) {
+                $discountAmount = $discountService->calculateDiscount($subTotal, $discountModel);
+            }
+        }
+
+        // Apply discount to subtotal only
+        $discountedSubtotal = max(0, $subTotal - $discountAmount);
+
+        // If discount is 100% (discounted subtotal is 0), set shipping fee to 0
+        if ($discountedSubtotal == 0 && $discountAmount > 0) {
+            $shippingFee = 0;
+        }
+
+        // Calculate tax on discounted subtotal only
+        $averageTaxRate = $subTotal > 0 ? ($totalTax / $subTotal) * 100 : 0;
+        $taxAmount = $discountedSubtotal * ($averageTaxRate / 100);
+
+        $total = $discountedSubtotal + $shippingFee + $taxAmount;
+
+        return [
+            'products' => array_map(function ($item) {
+                return [
+                    'product_id' => $item['product']->id,
+                    'price_id' => $item['price_id'],
+                    'quantity' => $item['quantity'],
+                    'selected_price' => $item['selected_price'],
+                ];
+            }, $productModels),
+            'sub_total' => round($subTotal, 2),
+            'discount_code' => $discountCode,
+            'discount_amount' => round($discountAmount, 2),
+            'tax_rate' => round($averageTaxRate, 2),
+            'tax_amount' => round($taxAmount, 2),
+            'shipping_fee' => round($shippingFee, 2),
+            'total' => round($total, 2),
+            'currency' => $geoData['currency'],
+            'country_code' => $geoData['country_code'],
+            'country' => $geoData['country'],
+        ];
+    }
+
+    /**
      * Initialize order sheet checkout with multiple products
+     * Creates form session when proceeding to actual checkout
+     * If ref is provided, it's cleared and new checkout is recalculated with new parameters
      */
     public function initializeOrderSheetCheckout(
         array $products, // [{product_id, price_id, quantity}, ...]
@@ -449,17 +528,18 @@ class DirectCheckoutService
         ?string $shippingAddress = null,
         ?string $additionalInformation = null,
         ?string $discountCode = null,
-        ?string $checkoutId = null,
-        bool $applyDiscountOnly = false,
         ?string $currency = null,
-        ?string $sourcePath = null
+        ?string $sourcePath = null,
+        ?string $ref = null
     ): array {
-        // Handle discount-only update on existing checkout
-        if ($applyDiscountOnly && $checkoutId) {
-            return $this->applyDiscountToExistingCheckout($checkoutId, $discountCode);
+        // If ref is provided, clear the old cached checkout and recalculate with new params
+        // This ensures product/discount changes are applied
+        if ($ref) {
+            $checkoutId = 'ref_' . $ref;
+            cache()->forget("direct_checkout_{$checkoutId}");
         }
         // Create idempotency key to prevent duplicate orders from double-submissions
-        $idempotencyKey = 'order_sheet_'.md5(json_encode([
+        $idempotencyKey = 'order_sheet_' . md5(json_encode([
             'email' => $email,
             'products' => $products,
             'discount_code' => $discountCode,
@@ -568,11 +648,11 @@ class DirectCheckoutService
         );
 
         // Create checkout data
-        $checkoutId = 'order_sheet_'.uniqid();
-        
+        $checkoutId = 'order_sheet_' . uniqid();
+
         // Determine redirect path: use source_path if provided, otherwise default based on currency
         $redirectPath = $sourcePath ?? ($geoData['currency'] === 'CAD' ? '/cccportal/order' : '/pinksky/order');
-        
+
         $checkoutData = [
             'checkout_id' => $checkoutId,
             'form_session_id' => $formSession->id,
@@ -688,6 +768,57 @@ class DirectCheckoutService
 
         $checkoutData = cache()->get("direct_checkout_{$checkoutId}");
 
+        // If not in cache and this is a resumed payment (ref_*), rebuild from database
+        if (! $checkoutData && str_starts_with($checkoutId, 'ref_')) {
+            $ref = substr($checkoutId, 4); // Remove 'ref_' prefix
+            $existingPayment = \App\Models\Payment::where('reference', $ref)->first();
+            if (! $existingPayment) {
+                throw new \Exception('Checkout session expired or not found');
+            }
+
+            // Rebuild checkout data from payment record
+            $paymentProducts = $existingPayment->paymentProducts()->with('product')->get();
+            $productsData = $paymentProducts->map(function ($paymentProduct) {
+                $rawPrice = $paymentProduct->getOriginal('price');
+                if (is_array($rawPrice)) {
+                    $price = $rawPrice;
+                } elseif (is_string($rawPrice)) {
+                    $price = json_decode($rawPrice, true);
+                    if (is_object($price)) {
+                        $price = (array) $price;
+                    } elseif (!is_array($price)) {
+                        $price = [];
+                    }
+                } else {
+                    $price = [];
+                }
+                return [
+                     'id' => $paymentProduct->product_id,
+                     'product_id' => $paymentProduct->product_id,
+                     'name' => $paymentProduct->product->name ?? 'Unknown Product',
+                     'quantity' => $paymentProduct->quantity,
+                     'selected_price' => $price,
+                 ];
+            });
+
+            $checkoutData = [
+                'checkout_id' => $checkoutId,
+                'form_session_id' => $existingPayment->form_session_id,
+                'order_type' => 'order_sheet',
+                'products' => $productsData,
+                'sub_total' => $existingPayment->sub_total,
+                'discount_code' => $existingPayment->discount_code,
+                'discount_amount' => $existingPayment->discount_amount ?? 0,
+                'tax_rate' => $existingPayment->tax_rate ?? 0,
+                'tax_amount' => $existingPayment->tax_amount ?? 0,
+                'shipping_fee' => $existingPayment->shipping_fee,
+                'total' => $existingPayment->total,
+                'currency' => $existingPayment->currency,
+                'country_code' => 'US',
+                'country' => 'United States',
+            ];
+        }
+
         if (! $checkoutData) {
             throw new \Exception('Checkout session expired or not found');
         }
@@ -717,12 +848,40 @@ class DirectCheckoutService
         $formSession->update(['metadata' => $metadata]);
 
         // Load products with quantities
-        $products = collect();
-        foreach ($checkoutData['products'] as $productData) {
-            $product = Product::findOrFail($productData['product_id']);
-            $product->selected_price = $productData['selected_price'];
-            $product->quantity = $productData['quantity']; // Store quantity on product object
-            $products->push($product);
+         $products = collect();
+         foreach ($checkoutData['products'] as $productData) {
+             $productId = is_array($productData) ? ($productData['product_id'] ?? null) : ($productData->product_id ?? null);
+             if (!$productId) {
+                 throw new \Exception('Invalid product data in checkout session');
+             }
+             $product = Product::findOrFail($productId);
+             $product->selected_price = $productData['selected_price'] ?? null;
+             $product->quantity = $productData['quantity'] ?? 1; // Store quantity on product object
+             $products->push($product);
+         }
+
+        // Recalculate all totals to prevent price tampering
+        $recalculated = $this->recalculateOrderSheetTotals(
+            $products,
+            $checkoutData['discount_code'] ?? null,
+            $checkoutData['currency'] ?? 'USD'
+        );
+
+        // Validate that recalculated totals match (allow small rounding differences)
+        $tolerance = 0.01; // Allow 1 cent tolerance for rounding
+        if (abs($recalculated['sub_total'] - $checkoutData['sub_total']) > $tolerance ||
+            abs($recalculated['tax_amount'] - $checkoutData['tax_amount']) > $tolerance ||
+            abs($recalculated['shipping_fee'] - $checkoutData['shipping_fee']) > $tolerance ||
+            abs($recalculated['total'] - $checkoutData['total']) > $tolerance) {
+            
+            Log::warning('Checkout price mismatch detected', [
+                'checkout_id' => $checkoutId,
+                'original' => $checkoutData,
+                'recalculated' => $recalculated,
+            ]);
+            
+            // Use recalculated values (conservative: use the recalculated total)
+            $checkoutData = array_merge($checkoutData, $recalculated);
         }
 
         // Prepare data for ProcessorService
@@ -756,6 +915,7 @@ class DirectCheckoutService
     /**
      * Initialize cart checkout with multiple products
      * Similar to order sheet but with order_type 'cart'
+     * If ref is provided, fetches existing payment session instead of creating new one
      */
     public function initializeCartCheckout(
         array $products, // [{product_id, price_id, quantity}, ...]
@@ -767,13 +927,20 @@ class DirectCheckoutService
         string $location,
         ?string $shippingAddress = null,
         ?string $additionalInformation = null,
-        ?string $discountCode = null
+        ?string $discountCode = null,
+        ?string $ref = null
     ): array {
-        // Find or create user by email
-        $user = $this->findOrCreateUser($firstName, $lastName, $email);
+        // If ref is provided, clear the old cached checkout and recalculate with new params
+        // This ensures product/discount changes are applied
+        if ($ref) {
+            $checkoutId = 'ref_' . $ref;
+            cache()->forget("direct_checkout_{$checkoutId}");
+        }
+                    // Find or create user by email
+                    $user = $this->findOrCreateUser($firstName, $lastName, $email);
 
-        // Use location field for currency detection: CAD for Canada, USD for others
-        $geoData = $this->getGeoDataFromLocation($location);
+                    // Use location field for currency detection: CAD for Canada, USD for others
+                    $geoData = $this->getGeoDataFromLocation($location);
 
         // Load all products and calculate totals
         $productModels = [];
@@ -856,7 +1023,7 @@ class DirectCheckoutService
         );
 
         // Create checkout data
-        $checkoutId = 'cart_'.uniqid();
+        $checkoutId = 'cart_' . uniqid();
         $checkoutData = [
             'checkout_id' => $checkoutId,
             'form_session_id' => $formSession->id,
@@ -961,6 +1128,58 @@ class DirectCheckoutService
         }
 
         $checkoutData = cache()->get("direct_checkout_{$checkoutId}");
+
+        // If not in cache and this is a resumed payment (ref_*), rebuild from database
+        if (! $checkoutData && str_starts_with($checkoutId, 'ref_')) {
+            $ref = substr($checkoutId, 4); // Remove 'ref_' prefix
+            $existingPayment = \App\Models\Payment::where('reference', $ref)->first();
+            if (! $existingPayment) {
+                throw new \Exception('Checkout session expired or not found');
+            }
+
+            // Rebuild checkout data from payment record
+            $paymentProducts = $existingPayment->paymentProducts()->with('product')->get();
+            $productsData = $paymentProducts->map(function ($paymentProduct) {
+                $rawPrice = $paymentProduct->getOriginal('price');
+                if (is_array($rawPrice)) {
+                    $price = $rawPrice;
+                } elseif (is_string($rawPrice)) {
+                    $decoded = json_decode($rawPrice, true);
+                    if (is_array($decoded)) {
+                        $price = $decoded;
+                    } else {
+                        $price = [];
+                    }
+                } else {
+                    $price = [];
+                }
+                return [
+                     'product_id' => $paymentProduct->product_id,
+                     'id' => $paymentProduct->product_id,
+                     'name' => $paymentProduct->product->name ?? 'Unknown Product',
+                     'quantity' => $paymentProduct->quantity,
+                     'selected_price' => $price,
+                 ];
+            });
+
+            $checkoutData = [
+                'checkout_id' => $checkoutId,
+                'form_session_id' => $existingPayment->form_session_id,
+                'order_type' => 'cart',
+                'products' => $productsData,
+                'sub_total' => $existingPayment->sub_total,
+                'discount_code' => $existingPayment->discount_code,
+                'discount_amount' => $existingPayment->discount_amount ?? 0,
+                'tax_rate' => $existingPayment->tax_rate ?? 0,
+                'tax_amount' => $existingPayment->tax_amount ?? 0,
+                'shipping_fee' => $existingPayment->shipping_fee,
+                'total' => $existingPayment->total,
+                'currency' => $existingPayment->currency,
+                'country_code' => 'US',
+                'country' => 'United States',
+                'customer_info' => [],
+            ];
+        }
 
         if (! $checkoutData) {
             throw new \Exception('Checkout session expired or not found');
@@ -1090,6 +1309,73 @@ class DirectCheckoutService
             'shipping_fee' => round($shippingFee, 2),
             'total' => round($total, 2),
             'currency' => $geoData['currency'],
+        ];
+    }
+
+    /**
+     * Recalculate order sheet totals from products to validate against tampering
+     */
+    private function recalculateOrderSheetTotals(
+        $products,
+        ?string $discountCode = null,
+        string $currency = 'USD'
+    ): array {
+        $subTotal = 0;
+        $totalTax = 0;
+        $defaultShippingFee = (float) config('checkout.shipping_fee', 60);
+
+        // Calculate subtotal and total tax from products
+        foreach ($products as $product) {
+            $quantity = $product->quantity ?? 1;
+            $price = $product->selected_price;
+            
+            if (is_array($price)) {
+                $lineTotal = ($price['value'] ?? 0) * $quantity;
+            } else {
+                $lineTotal = 0;
+            }
+            
+            $subTotal += $lineTotal;
+            
+            // Calculate tax for this product line
+            $taxRate = $this->getTaxRate($product);
+            $totalTax += $lineTotal * ($taxRate / 100);
+        }
+
+        // Calculate shipping
+        $shippingFee = $this->calculateOrderSheetShippingFee($subTotal, $defaultShippingFee);
+
+        // Apply discount if provided
+        $discountAmount = 0;
+        if ($discountCode) {
+            $discountService = new DiscountCodeService;
+            $discountModel = $discountService->validate($discountCode);
+            if ($discountModel) {
+                $discountAmount = $discountService->calculateDiscount($subTotal, $discountModel);
+            }
+        }
+
+        // Apply discount to subtotal only
+        $discountedSubtotal = max(0, $subTotal - $discountAmount);
+
+        // If discount is 100%, set shipping fee to 0
+        if ($discountedSubtotal == 0 && $discountAmount > 0) {
+            $shippingFee = 0;
+        }
+
+        // Calculate tax on discounted subtotal only
+        $averageTaxRate = $subTotal > 0 ? ($totalTax / $subTotal) * 100 : 0;
+        $taxAmount = $discountedSubtotal * ($averageTaxRate / 100);
+
+        $total = $discountedSubtotal + $shippingFee + $taxAmount;
+
+        return [
+            'sub_total' => round($subTotal, 2),
+            'discount_amount' => round($discountAmount, 2),
+            'tax_rate' => round($averageTaxRate, 2),
+            'tax_amount' => round($taxAmount, 2),
+            'shipping_fee' => round($shippingFee, 2),
+            'total' => round($total, 2),
         ];
     }
 }
