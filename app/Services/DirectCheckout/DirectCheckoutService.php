@@ -8,15 +8,14 @@ use App\Helpers\StatusConstants;
 use App\Models\FormSession;
 use App\Models\Product;
 use App\Models\User;
+use App\Services\Form\Payment\ProcessorService;
 use App\Services\General\DiscountCodeService;
 use App\Services\General\IpAddressService;
-use App\Services\Form\Payment\ProcessorService;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
-use Illuminate\Support\Facades\Validator;
 
 class DirectCheckoutService
 {
@@ -36,7 +35,7 @@ class DirectCheckoutService
 
         // Decrypt price_id to get price information
         $priceData = json_decode(Helper::decrypt($priceId), true);
-        if (!$priceData || $priceData['product_id'] != $productId) {
+        if (! $priceData || $priceData['product_id'] != $productId) {
             throw new \Exception('Invalid price ID');
         }
 
@@ -62,7 +61,7 @@ class DirectCheckoutService
         $total = $subTotal + $shippingFee + $taxAmount;
 
         // Create checkout data
-        $checkoutId = 'checkout_' . uniqid();
+        $checkoutId = 'checkout_'.uniqid();
         $checkoutData = [
             'checkout_id' => $checkoutId,
             'form_session_id' => $formSession->id,
@@ -150,7 +149,7 @@ class DirectCheckoutService
                         [
                             'product_id' => $product->id,
                             'price_id' => $priceId,
-                        ]
+                        ],
                     ],
                 ],
             ],
@@ -162,11 +161,12 @@ class DirectCheckoutService
      */
     private function generateReference(): string
     {
-        $code = "DC-" . Helper::getRandomToken(6, true); // DC = Direct Checkout
-        $check = FormSession::where("reference", $code)->exists();
+        $code = 'DC-'.Helper::getRandomToken(6, true); // DC = Direct Checkout
+        $check = FormSession::where('reference', $code)->exists();
         if ($check) {
             return $this->generateReference();
         }
+
         return $code;
     }
 
@@ -177,14 +177,14 @@ class DirectCheckoutService
     {
         $checkoutData = cache()->get("direct_checkout_{$checkoutId}");
 
-        if (!$checkoutData) {
+        if (! $checkoutData) {
             throw new \Exception('Checkout session expired or not found');
         }
 
         // Apply discount using DiscountCodeService (on subtotal only, not shipping)
-        $discountService = new DiscountCodeService();
+        $discountService = new DiscountCodeService;
         $discountModel = $discountService->validate($discountCode);
-        if (!$discountModel) {
+        if (! $discountModel) {
             throw new \Exception('Invalid or expired discount code');
         }
 
@@ -196,7 +196,7 @@ class DirectCheckoutService
 
         // Apply discount to subtotal only
         $discountedSubtotal = max(0, $checkoutData['sub_total'] - $discountAmount);
-        
+
         // Calculate tax on discounted subtotal only (not including shipping)
         $taxAmount = $discountedSubtotal * ($checkoutData['tax_rate'] / 100);
         $checkoutData['tax_amount'] = round($taxAmount, 2);
@@ -215,14 +215,14 @@ class DirectCheckoutService
      */
     private function verifyRecaptcha(?string $recaptchaToken): void
     {
-        if (!$recaptchaToken) {
+        if (! $recaptchaToken) {
             throw ValidationException::withMessages([
-                'recaptcha_token' => ['reCAPTCHA token is required']
+                'recaptcha_token' => ['reCAPTCHA token is required'],
             ]);
         }
 
         $recaptchaSecret = config('services.recaptcha.secret');
-        if (!$recaptchaSecret) {
+        if (! $recaptchaSecret) {
             Log::warning('reCAPTCHA secret key not configured');
             throw new \Exception('reCAPTCHA verification is not configured');
         }
@@ -235,13 +235,13 @@ class DirectCheckoutService
 
         $recaptchaResult = $recaptchaResponse->json();
 
-        if (!$recaptchaResult['success'] || ($recaptchaResult['score'] ?? 0) < 0.5) {
+        if (! $recaptchaResult['success'] || ($recaptchaResult['score'] ?? 0) < 0.5) {
             Log::warning('reCAPTCHA verification failed', [
                 'result' => $recaptchaResult,
                 'ip' => request()->ip(),
             ]);
             throw ValidationException::withMessages([
-                'recaptcha_token' => ['reCAPTCHA verification failed. Please try again.']
+                'recaptcha_token' => ['reCAPTCHA verification failed. Please try again.'],
             ]);
         }
     }
@@ -258,7 +258,7 @@ class DirectCheckoutService
 
         $checkoutData = cache()->get("direct_checkout_{$checkoutId}");
 
-        if (!$checkoutData) {
+        if (! $checkoutData) {
             throw new \Exception('Checkout session expired or not found');
         }
 
@@ -290,7 +290,7 @@ class DirectCheckoutService
         ];
 
         // Use existing ProcessorService to create payment
-        $result = (new ProcessorService())->initiate($formSession, $paymentData);
+        $result = (new ProcessorService)->initiate($formSession, $paymentData);
 
         // Clear checkout cache
         cache()->forget("direct_checkout_{$checkoutId}");
@@ -332,18 +332,18 @@ class DirectCheckoutService
     private function getGeoData(): array
     {
         $info = IpAddressService::info();
-        $countryCode = $info["countryCode"] ?? null;
-        $country = $info["country"] ?? null;
-        
+        $countryCode = $info['countryCode'] ?? null;
+        $country = $info['country'] ?? null;
+
         // Default to USD if location is not Canada
         if (strtolower($countryCode ?? '') === 'ca' || strtolower($country ?? '') === 'canada') {
-            $currency = $info["currency"] ?? "CAD";
-            $countryCode = $countryCode ?? "CA";
-            $country = $country ?? "Canada";
+            $currency = $info['currency'] ?? 'CAD';
+            $countryCode = $countryCode ?? 'CA';
+            $country = $country ?? 'Canada';
         } else {
-            $currency = $info["currency"] ?? "USD";
-            $countryCode = $countryCode ?? "US";
-            $country = $country ?? "United States";
+            $currency = $info['currency'] ?? 'USD';
+            $countryCode = $countryCode ?? 'US';
+            $country = $country ?? 'United States';
         }
 
         return [
@@ -388,6 +388,7 @@ class DirectCheckoutService
         if ($subTotal >= $freeShippingThreshold) {
             return 0;
         }
+
         return $defaultShippingFee;
     }
 
@@ -406,6 +407,19 @@ class DirectCheckoutService
         ?string $additionalInformation = null,
         ?string $discountCode = null
     ): array {
+        // Create idempotency key to prevent duplicate orders from double-submissions
+        $idempotencyKey = 'order_sheet_'.md5(json_encode([
+            'email' => $email,
+            'products' => $products,
+            'discount_code' => $discountCode,
+        ]));
+
+        // Check if we already processed this exact request in the last 5 minutes
+        $existingCheckout = cache()->get($idempotencyKey);
+        if ($existingCheckout) {
+            return $existingCheckout;
+        }
+
         // Find or create user by email
         $user = $this->findOrCreateUser($firstName, $lastName, $email);
 
@@ -423,7 +437,7 @@ class DirectCheckoutService
 
             // Decrypt price_id to get price information
             $priceData = json_decode(Helper::decrypt($productData['price_id']), true);
-            if (!$priceData || $priceData['product_id'] != $product->id) {
+            if (! $priceData || $priceData['product_id'] != $product->id) {
                 throw new \Exception("Invalid price ID for product {$product->id}");
             }
 
@@ -455,9 +469,9 @@ class DirectCheckoutService
         // Apply discount if provided (to subtotal only, not shipping)
         $discountAmount = 0;
         if ($discountCode) {
-            $discountService = new DiscountCodeService();
+            $discountService = new DiscountCodeService;
             $discountModel = $discountService->validate($discountCode);
-            if (!$discountModel) {
+            if (! $discountModel) {
                 throw new \Exception('Invalid discount code');
             }
             // Calculate discount on subtotal only
@@ -466,12 +480,12 @@ class DirectCheckoutService
 
         // Apply discount to subtotal only
         $discountedSubtotal = max(0, $subTotal - $discountAmount);
-        
+
         // If discount is 100% (discounted subtotal is 0), set shipping fee to 0
         if ($discountedSubtotal == 0 && $discountAmount > 0) {
             $shippingFee = 0;
         }
-        
+
         // Calculate tax on discounted subtotal only (not including shipping)
         $averageTaxRate = $subTotal > 0 ? ($totalTax / $subTotal) * 100 : 0;
         $taxAmount = $discountedSubtotal * ($averageTaxRate / 100);
@@ -493,7 +507,7 @@ class DirectCheckoutService
         );
 
         // Create checkout data
-        $checkoutId = 'order_sheet_' . uniqid();
+        $checkoutId = 'order_sheet_'.uniqid();
         $checkoutData = [
             'checkout_id' => $checkoutId,
             'form_session_id' => $formSession->id,
@@ -536,6 +550,9 @@ class DirectCheckoutService
 
         // Store in cache for 30 minutes
         cache()->put("direct_checkout_{$checkoutId}", $checkoutData, now()->addMinutes(30));
+
+        // Cache the checkout result to prevent duplicate orders from double-submissions (5 minutes)
+        cache()->put($idempotencyKey, $checkoutData, now()->addMinutes(5));
 
         return $checkoutData;
     }
@@ -599,12 +616,23 @@ class DirectCheckoutService
 
         $checkoutData = cache()->get("direct_checkout_{$checkoutId}");
 
-        if (!$checkoutData) {
+        if (! $checkoutData) {
             throw new \Exception('Checkout session expired or not found');
         }
 
         if ($checkoutData['order_type'] !== 'order_sheet') {
             throw new \Exception('Invalid checkout type');
+        }
+
+        // Check if payment already exists for this checkout to prevent duplicate orders
+        $existingPaymentId = cache()->get("checkout_payment_{$checkoutId}");
+        if ($existingPaymentId) {
+            $existingPayment = Payment::findOrFail($existingPaymentId);
+
+            return [
+                'payment' => $existingPayment,
+                'redirect_url' => $existingPayment->payment_reference,
+            ];
         }
 
         // Get form session
@@ -642,8 +670,10 @@ class DirectCheckoutService
         ];
 
         // Create a new payment/order (ProcessorService::initiate always creates a new Payment record)
-        // Each time processOrderSheetPayment is called, a new order is created
-        $result = (new ProcessorService())->initiate($formSession, $paymentData);
+        $result = (new ProcessorService)->initiate($formSession, $paymentData);
+
+        // Cache payment ID to prevent duplicate orders on retry (5 minutes)
+        cache()->put("checkout_payment_{$checkoutId}", $result['payment']->id, now()->addMinutes(5));
 
         // Clear checkout cache
         cache()->forget("direct_checkout_{$checkoutId}");
@@ -684,7 +714,7 @@ class DirectCheckoutService
 
             // Decrypt price_id to get price information
             $priceData = json_decode(Helper::decrypt($productData['price_id']), true);
-            if (!$priceData || $priceData['product_id'] != $product->id) {
+            if (! $priceData || $priceData['product_id'] != $product->id) {
                 throw new \Exception("Invalid price ID for product {$product->id}");
             }
 
@@ -716,9 +746,9 @@ class DirectCheckoutService
         // Apply discount if provided (to subtotal only, not shipping)
         $discountAmount = 0;
         if ($discountCode) {
-            $discountService = new DiscountCodeService();
+            $discountService = new DiscountCodeService;
             $discountModel = $discountService->validate($discountCode);
-            if (!$discountModel) {
+            if (! $discountModel) {
                 throw new \Exception('Invalid discount code');
             }
             // Calculate discount on subtotal only
@@ -727,12 +757,12 @@ class DirectCheckoutService
 
         // Apply discount to subtotal only
         $discountedSubtotal = max(0, $subTotal - $discountAmount);
-        
+
         // If discount is 100% (discounted subtotal is 0), set shipping fee to 0
         if ($discountedSubtotal == 0 && $discountAmount > 0) {
             $shippingFee = 0;
         }
-        
+
         // Calculate tax on discounted subtotal only (not including shipping)
         $averageTaxRate = $subTotal > 0 ? ($totalTax / $subTotal) * 100 : 0;
         $taxAmount = $discountedSubtotal * ($averageTaxRate / 100);
@@ -754,7 +784,7 @@ class DirectCheckoutService
         );
 
         // Create checkout data
-        $checkoutId = 'cart_' . uniqid();
+        $checkoutId = 'cart_'.uniqid();
         $checkoutData = [
             'checkout_id' => $checkoutId,
             'form_session_id' => $formSession->id,
@@ -860,7 +890,7 @@ class DirectCheckoutService
 
         $checkoutData = cache()->get("direct_checkout_{$checkoutId}");
 
-        if (!$checkoutData) {
+        if (! $checkoutData) {
             throw new \Exception('Checkout session expired or not found');
         }
 
@@ -903,7 +933,7 @@ class DirectCheckoutService
         ];
 
         // Create a new payment/order
-        $result = (new ProcessorService())->initiate($formSession, $paymentData);
+        $result = (new ProcessorService)->initiate($formSession, $paymentData);
 
         // Clear checkout cache
         cache()->forget("direct_checkout_{$checkoutId}");
@@ -933,7 +963,7 @@ class DirectCheckoutService
 
             // Decrypt price_id to get price information
             $priceData = json_decode(Helper::decrypt($productData['price_id']), true);
-            if (!$priceData || $priceData['product_id'] != $product->id) {
+            if (! $priceData || $priceData['product_id'] != $product->id) {
                 throw new \Exception("Invalid price ID for product {$product->id}");
             }
 
@@ -957,7 +987,7 @@ class DirectCheckoutService
         // Apply discount if provided (to subtotal only, not shipping)
         $discountAmount = 0;
         if ($discountCode) {
-            $discountService = new DiscountCodeService();
+            $discountService = new DiscountCodeService;
             $discountModel = $discountService->validate($discountCode);
             if ($discountModel) {
                 // Calculate discount on subtotal only
@@ -967,12 +997,12 @@ class DirectCheckoutService
 
         // Apply discount to subtotal only
         $discountedSubtotal = max(0, $subTotal - $discountAmount);
-        
+
         // If discount is 100% (discounted subtotal is 0), set shipping fee to 0
         if ($discountedSubtotal == 0 && $discountAmount > 0) {
             $shippingFee = 0;
         }
-        
+
         // Calculate tax on discounted subtotal only (not including shipping)
         $averageTaxRate = $subTotal > 0 ? ($totalTax / $subTotal) * 100 : 0;
         $taxAmount = $discountedSubtotal * ($averageTaxRate / 100);
