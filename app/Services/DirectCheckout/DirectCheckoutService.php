@@ -92,7 +92,7 @@ class DirectCheckoutService
         ];
 
         // Store in cache for 30 minutes
-        cache()->put("direct_checkout_{$checkoutId}", $checkoutData, now()->addMinutes(30));
+        cache()->put("direct_checkout_{$checkoutId}", $checkoutData, now()->addHours(2));
 
         return $checkoutData;
     }
@@ -208,7 +208,7 @@ class DirectCheckoutService
         $checkoutData['shipping_fee'] = round($shippingFee, 2);
         $checkoutData['total'] = round($discountedSubtotal + $shippingFee + $taxAmount, 2);
 
-        cache()->put("direct_checkout_{$checkoutId}", $checkoutData, now()->addMinutes(30));
+        cache()->put("direct_checkout_{$checkoutId}", $checkoutData, now()->addHours(2));
 
         return $checkoutData;
     }
@@ -248,7 +248,7 @@ class DirectCheckoutService
         $checkoutData['total'] = round($discountedSubtotal + $checkoutData['shipping_fee'] + $taxAmount, 2);
 
         // Update cache
-        cache()->put("direct_checkout_{$checkoutId}", $checkoutData, now()->addMinutes(30));
+        cache()->put("direct_checkout_{$checkoutId}", $checkoutData, now()->addHours(2));
 
         return $checkoutData;
     }
@@ -615,10 +615,10 @@ class DirectCheckoutService
         ];
 
         // Store in cache for 30 minutes
-        cache()->put("direct_checkout_{$checkoutId}", $checkoutData, now()->addMinutes(30));
+        cache()->put("direct_checkout_{$checkoutId}", $checkoutData, now()->addHours(2));
 
         // Cache the checkout result to prevent duplicate orders from double-submissions (5 minutes)
-        cache()->put($idempotencyKey, $checkoutData, now()->addMinutes(5));
+        cache()->put($idempotencyKey, $checkoutData, now()->addHours(1));
 
         return $checkoutData;
     }
@@ -745,7 +745,7 @@ class DirectCheckoutService
         $result = (new ProcessorService)->initiate($formSession, $paymentData);
 
         // Cache payment ID to prevent duplicate orders on retry (5 minutes)
-        cache()->put("checkout_payment_{$checkoutId}", $result['payment']->id, now()->addMinutes(5));
+        cache()->put("checkout_payment_{$checkoutId}", $result['payment']->id, now()->addHours(1));
 
         // Clear checkout cache
         cache()->forget("direct_checkout_{$checkoutId}");
@@ -898,7 +898,7 @@ class DirectCheckoutService
         ];
 
         // Store in cache for 30 minutes
-        cache()->put("direct_checkout_{$checkoutId}", $checkoutData, now()->addMinutes(30));
+        cache()->put("direct_checkout_{$checkoutId}", $checkoutData, now()->addHours(2));
 
         return $checkoutData;
     }
