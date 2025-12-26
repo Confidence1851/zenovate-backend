@@ -29,7 +29,7 @@ class DirectCheckoutController extends Controller
                 'use_type' => 'nullable|string|in:patient,clinic',
             ]);
 
-            $service = new DirectCheckoutService();
+            $service = new DirectCheckoutService;
             $checkoutData = $service->initializeCheckout(
                 $validated['product_id'],
                 $validated['price_id'],
@@ -60,7 +60,7 @@ class DirectCheckoutController extends Controller
             Log::error('Direct checkout initialization failed', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
-                'request' => $request->all()
+                'request' => $request->all(),
             ]);
 
             return ApiHelper::problemResponse(
@@ -78,34 +78,47 @@ class DirectCheckoutController extends Controller
     public function orderSheetInit(Request $request)
     {
         try {
-            $validated = $request->validate([
+            $isApplyDiscountOnly = $request->boolean('apply_discount_only', false);
+
+            $rules = [
                 'products' => 'required|array|min:1',
                 'products.*.product_id' => 'required|integer|exists:products,id',
                 'products.*.price_id' => 'required|string',
                 'products.*.quantity' => 'nullable|integer|min:1',
-                'first_name' => 'required|string|max:255',
-                'last_name' => 'required|string|max:255',
-                'email' => 'required|email|max:255',
-                'phone' => 'required|string|max:255',
-                'account_number' => 'nullable|string|max:255',
-                'location' => 'nullable|string|max:255',
-                'shipping_address' => 'nullable|string',
-                'additional_information' => 'nullable|string',
                 'discount_code' => 'nullable|string',
-            ]);
+                'checkout_id' => 'nullable|string',
+                'apply_discount_only' => 'nullable|boolean',
+            ];
 
-            $service = new DirectCheckoutService();
+            if (! $isApplyDiscountOnly) {
+                $rules += [
+                    'first_name' => 'required|string|max:255',
+                    'last_name' => 'required|string|max:255',
+                    'email' => 'required|email|max:255',
+                    'phone' => 'required|string|max:255',
+                    'account_number' => 'nullable|string|max:255',
+                    'location' => 'nullable|string|max:255',
+                    'shipping_address' => 'nullable|string',
+                    'additional_information' => 'nullable|string',
+                ];
+            }
+
+            $validated = $request->validate($rules);
+
+            $service = new DirectCheckoutService;
             $checkoutData = $service->initializeOrderSheetCheckout(
                 $validated['products'],
-                $validated['first_name'],
-                $validated['last_name'],
-                $validated['email'],
-                $validated['phone'],
+                $validated['first_name'] ?? '',
+                $validated['last_name'] ?? '',
+                $validated['email'] ?? '',
+                $validated['phone'] ?? '',
                 $validated['account_number'] ?? '',
                 $validated['location'] ?? '',
                 $validated['shipping_address'] ?? null,
                 $validated['additional_information'] ?? null,
-                $validated['discount_code'] ?? null
+                $validated['discount_code'] ?? null,
+                $validated['checkout_id'] ?? null,
+                $isApplyDiscountOnly
             );
 
             return ApiHelper::validResponse(
@@ -123,7 +136,7 @@ class DirectCheckoutController extends Controller
             Log::error('Order sheet checkout initialization failed', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
-                'request' => $request->all()
+                'request' => $request->all(),
             ]);
 
             return ApiHelper::problemResponse(
@@ -136,7 +149,7 @@ class DirectCheckoutController extends Controller
             Log::error('Order sheet checkout initialization failed', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
-                'request' => $request->all()
+                'request' => $request->all(),
             ]);
 
             return ApiHelper::problemResponse(
@@ -162,7 +175,7 @@ class DirectCheckoutController extends Controller
         $payment = \App\Models\Payment::with(['paymentProducts.product', 'formSession'])
             ->where('reference', $reference)
             ->first();
-        if (!$payment) {
+        if (! $payment) {
             return ApiHelper::problemResponse('Payment not found', ApiConstants::NOT_FOUND_ERR_CODE);
         }
 
@@ -187,7 +200,7 @@ class DirectCheckoutController extends Controller
         if ($isMultiProduct) {
             foreach ($payment->paymentProducts as $pp) {
                 $product = $pp->product;
-                if (!$product) {
+                if (! $product) {
                     continue;
                 }
                 // Price is stored as array in PaymentProduct
@@ -268,7 +281,7 @@ class DirectCheckoutController extends Controller
                 'discount_code' => 'required|string',
             ]);
 
-            $service = new DirectCheckoutService();
+            $service = new DirectCheckoutService;
             $checkoutData = $service->applyDiscount(
                 $validated['checkout_id'],
                 $validated['discount_code']
@@ -289,7 +302,7 @@ class DirectCheckoutController extends Controller
             Log::error('Direct checkout discount application failed', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
-                'request' => $request->all()
+                'request' => $request->all(),
             ]);
 
             return ApiHelper::problemResponse(
@@ -302,7 +315,7 @@ class DirectCheckoutController extends Controller
             Log::error('Direct checkout discount application failed', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
-                'request' => $request->all()
+                'request' => $request->all(),
             ]);
 
             return ApiHelper::problemResponse(
@@ -329,7 +342,7 @@ class DirectCheckoutController extends Controller
             $cached = cache()->get("direct_checkout_{$validated['checkout_id']}");
             $orderType = $cached['order_type'] ?? 'regular';
 
-            $service = new DirectCheckoutService();
+            $service = new DirectCheckoutService;
             $recaptchaToken = $validated['recaptcha_token'] ?? null;
 
             if ($orderType === 'order_sheet') {
@@ -360,7 +373,7 @@ class DirectCheckoutController extends Controller
             Log::error('Direct checkout payment processing failed', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
-                'request' => $request->all()
+                'request' => $request->all(),
             ]);
 
             return ApiHelper::problemResponse(
@@ -394,7 +407,7 @@ class DirectCheckoutController extends Controller
                 'discount_code' => 'nullable|string',
             ]);
 
-            $service = new DirectCheckoutService();
+            $service = new DirectCheckoutService;
             $checkoutData = $service->initializeOrderSheetCheckout(
                 $validated['products'],
                 $validated['first_name'],
@@ -428,7 +441,7 @@ class DirectCheckoutController extends Controller
             Log::error('Order sheet checkout initialization failed', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
-                'request' => $request->all()
+                'request' => $request->all(),
             ]);
 
             return ApiHelper::problemResponse(
@@ -450,7 +463,7 @@ class DirectCheckoutController extends Controller
                 'checkout_id' => 'required|string',
             ]);
 
-            $service = new DirectCheckoutService();
+            $service = new DirectCheckoutService;
             $result = $service->processOrderSheetPayment($validated['checkout_id']);
 
             return ApiHelper::validResponse(
@@ -473,7 +486,7 @@ class DirectCheckoutController extends Controller
             Log::error('Order sheet payment processing failed', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
-                'request' => $request->all()
+                'request' => $request->all(),
             ]);
 
             return ApiHelper::problemResponse(
@@ -497,7 +510,7 @@ class DirectCheckoutController extends Controller
 
             $payment = \App\Models\Payment::where('reference', $validated['reference'])->first();
 
-            if (!$payment) {
+            if (! $payment) {
                 return ApiHelper::problemResponse(
                     'Payment not found',
                     ApiConstants::NOT_FOUND_ERR_CODE
@@ -507,20 +520,20 @@ class DirectCheckoutController extends Controller
             // Get product from payment products relationship
             $product = $payment->products()->first();
 
-            if (!$product) {
+            if (! $product) {
                 // Try to get from form session metadata for direct checkout
                 $formSession = $payment->formSession;
                 if ($formSession && $formSession->isDirectCheckout()) {
                     $metadata = $formSession->metadata['raw'] ?? [];
                     $selectedProducts = $metadata['selectedProducts'] ?? [];
-                    if (!empty($selectedProducts) && isset($selectedProducts[0]['product_id'])) {
+                    if (! empty($selectedProducts) && isset($selectedProducts[0]['product_id'])) {
                         $productId = $selectedProducts[0]['product_id'];
                         $product = \App\Models\Product::find($productId);
                     }
                 }
             }
 
-            if (!$product) {
+            if (! $product) {
                 return ApiHelper::problemResponse(
                     'Product not found for this payment',
                     ApiConstants::NOT_FOUND_ERR_CODE
@@ -546,7 +559,7 @@ class DirectCheckoutController extends Controller
             Log::error('Failed to get product from payment reference', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
-                'request' => $request->all()
+                'request' => $request->all(),
             ]);
 
             return ApiHelper::problemResponse(
@@ -570,7 +583,7 @@ class DirectCheckoutController extends Controller
 
             $payment = \App\Models\Payment::where('reference', $validated['reference'])->first();
 
-            if (!$payment) {
+            if (! $payment) {
                 return ApiHelper::problemResponse(
                     'Payment not found',
                     ApiConstants::NOT_FOUND_ERR_CODE
@@ -595,7 +608,7 @@ class DirectCheckoutController extends Controller
             Log::error('Failed to get payment information', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
-                'request' => $request->all()
+                'request' => $request->all(),
             ]);
 
             return ApiHelper::problemResponse(
@@ -629,7 +642,7 @@ class DirectCheckoutController extends Controller
                 'discount_code' => 'nullable|string',
             ]);
 
-            $service = new DirectCheckoutService();
+            $service = new DirectCheckoutService;
             $checkoutData = $service->initializeCartCheckout(
                 $validated['products'],
                 $validated['first_name'],
@@ -663,7 +676,7 @@ class DirectCheckoutController extends Controller
             Log::error('Cart checkout initialization failed', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
-                'request' => $request->all()
+                'request' => $request->all(),
             ]);
 
             return ApiHelper::problemResponse(
@@ -686,7 +699,7 @@ class DirectCheckoutController extends Controller
                 'recaptcha_token' => 'nullable|string',
             ]);
 
-            $service = new DirectCheckoutService();
+            $service = new DirectCheckoutService;
             $recaptchaToken = $validated['recaptcha_token'] ?? null;
             $result = $service->processCartPayment($validated['checkout_id'], $recaptchaToken);
 
@@ -710,7 +723,7 @@ class DirectCheckoutController extends Controller
             Log::error('Cart payment processing failed', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
-                'request' => $request->all()
+                'request' => $request->all(),
             ]);
 
             return ApiHelper::problemResponse(
@@ -736,7 +749,7 @@ class DirectCheckoutController extends Controller
                 'discount_code' => 'nullable|string',
             ]);
 
-            $service = new DirectCheckoutService();
+            $service = new DirectCheckoutService;
             $summary = $service->calculateCartSummary(
                 $validated['products'],
                 $validated['discount_code'] ?? null
@@ -757,7 +770,7 @@ class DirectCheckoutController extends Controller
             Log::error('Cart summary calculation failed', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
-                'request' => $request->all()
+                'request' => $request->all(),
             ]);
 
             return ApiHelper::problemResponse(
@@ -770,7 +783,7 @@ class DirectCheckoutController extends Controller
             Log::error('Cart summary calculation failed', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
-                'request' => $request->all()
+                'request' => $request->all(),
             ]);
 
             return ApiHelper::problemResponse(

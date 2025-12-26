@@ -171,6 +171,49 @@ class DirectCheckoutService
     }
 
     /**
+     * Apply discount to an existing checkout without creating a FormSession
+     * Used when user applies discount before proceeding to final checkout
+     */
+    private function applyDiscountToExistingCheckout(?string $checkoutId, ?string $discountCode): array
+    {
+        if (! $checkoutId || ! $discountCode) {
+            throw new \Exception('Missing checkout_id or discount_code');
+        }
+
+        $checkoutData = cache()->get("direct_checkout_{$checkoutId}");
+        if (! $checkoutData) {
+            throw new \Exception('Checkout session expired or not found');
+        }
+
+        $discountService = new DiscountCodeService;
+        $discountModel = $discountService->validate($discountCode);
+        if (! $discountModel) {
+            throw new \Exception('Invalid or expired discount code');
+        }
+
+        $discountAmount = $discountService->calculateDiscount($checkoutData['sub_total'], $discountModel);
+
+        $discountedSubtotal = max(0, $checkoutData['sub_total'] - $discountAmount);
+
+        $shippingFee = $checkoutData['shipping_fee'];
+        if ($discountedSubtotal == 0 && $discountAmount > 0) {
+            $shippingFee = 0;
+        }
+
+        $taxAmount = $discountedSubtotal * ($checkoutData['tax_rate'] / 100);
+
+        $checkoutData['discount_code'] = $discountModel->code;
+        $checkoutData['discount_amount'] = round($discountAmount, 2);
+        $checkoutData['tax_amount'] = round($taxAmount, 2);
+        $checkoutData['shipping_fee'] = round($shippingFee, 2);
+        $checkoutData['total'] = round($discountedSubtotal + $shippingFee + $taxAmount, 2);
+
+        cache()->put("direct_checkout_{$checkoutId}", $checkoutData, now()->addMinutes(30));
+
+        return $checkoutData;
+    }
+
+    /**
      * Apply discount code to checkout
      */
     public function applyDiscount(string $checkoutId, string $discountCode): array
@@ -405,8 +448,14 @@ class DirectCheckoutService
         string $location,
         ?string $shippingAddress = null,
         ?string $additionalInformation = null,
-        ?string $discountCode = null
+        ?string $discountCode = null,
+        ?string $checkoutId = null,
+        bool $applyDiscountOnly = false
     ): array {
+        // Handle discount-only update on existing checkout
+        if ($applyDiscountOnly && $checkoutId) {
+            return $this->applyDiscountToExistingCheckout($checkoutId, $discountCode);
+        }
         // Create idempotency key to prevent duplicate orders from double-submissions
         $idempotencyKey = 'order_sheet_'.md5(json_encode([
             'email' => $email,
