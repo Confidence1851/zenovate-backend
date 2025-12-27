@@ -174,6 +174,11 @@
                                     $orderType = $dto->payment->order_type ?? 'regular';
                                     $isOrderSheet = $orderType === 'order_sheet';
                                 @endphp
+                                <div class="mb-3">
+                                    <a href="{{ route('dashboard.payments.show', $dto->payment->id) }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-primary">
+                                        View Full Payment Details
+                                    </a>
+                                </div>
                                 <p>
                                     <b>Order Type:</b>
                                     @if ($isOrderSheet)
