@@ -80,8 +80,19 @@ class DirectCheckoutService
             }
         }
 
-        // Initial total (will be recalculated after discount if applied)
-        $total = $subTotal + $shippingFee + $taxAmount - $discountAmount;
+        // Apply discount to subtotal only
+        $discountedSubtotal = max(0, $subTotal - $discountAmount);
+        
+        // If discount is 100% (discounted subtotal is 0), set shipping fee to 0
+        if ($discountedSubtotal == 0 && $discountAmount > 0) {
+            $shippingFee = 0;
+        }
+
+        // Recalculate tax on discounted subtotal
+        $taxAmount = $discountedSubtotal * ($taxRate / 100);
+
+        // Calculate total
+        $total = $discountedSubtotal + $shippingFee + $taxAmount;
 
         // Create checkout data
         $checkoutData = [
@@ -305,6 +316,12 @@ class DirectCheckoutService
 
         // Calculate final totals with discount
         $discountedSubtotal = max(0, $subTotal - $discountAmount);
+        
+        // If discount is 100% (discounted subtotal is 0), set shipping fee to 0
+        if ($discountedSubtotal == 0 && $discountAmount > 0) {
+            $shippingFee = 0;
+        }
+        
         $finalTaxAmount = $discountedSubtotal * ($taxRate / 100);
         $finalTotal = $discountedSubtotal + $shippingFee + $finalTaxAmount;
 
