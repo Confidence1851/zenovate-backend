@@ -462,6 +462,7 @@ class DirectCheckoutService
     /**
      * Initialize order sheet checkout with multiple products
      * Creates form session when proceeding to actual checkout
+     * If ref is provided and payment exists and is not paid, reuses existing form session
      */
     public function initializeOrderSheetCheckout(
         array $products, // [{product_id, price_id, quantity}, ...]
@@ -475,8 +476,21 @@ class DirectCheckoutService
         ?string $additionalInformation = null,
         ?string $discountCode = null,
         ?string $currency = null,
-        ?string $sourcePath = null
+        ?string $sourcePath = null,
+        ?string $ref = null
     ): array {
+        // Check if ref is provided and payment exists
+        $existingFormSession = null;
+        if ($ref) {
+            $payment = \App\Models\Payment::where('reference', $ref)->first();
+            if ($payment) {
+                if ($payment->status === 'paid') {
+                    throw new \Exception('This form session has been paid for');
+                }
+                $existingFormSession = $payment->formSession;
+            }
+        }
+
         // Find or create user by email
         $user = $this->findOrCreateUser($firstName, $lastName, $email);
 
@@ -557,21 +571,58 @@ class DirectCheckoutService
 
         $total = $discountedSubtotal + $shippingFee + $taxAmount;
 
-        // Create a new form session for this checkout (creates a new order each time)
-        $formSession = $this->createOrderSheetFormSession(
-            $user,
-            $productModels,
-            $firstName,
-            $lastName,
-            $email,
-            $phone,
-            $accountNumber,
-            $location,
-            $shippingAddress,
-            $additionalInformation,
-            $sourcePath,
-            $geoData['currency']
-        );
+        // Use existing form session if provided and available, otherwise create a new one
+        if ($existingFormSession) {
+            $formSession = $existingFormSession;
+            // Update the form session metadata with latest data
+            $selectedProducts = array_map(function ($item) {
+                return [
+                    'product_id' => $item['product']->id,
+                    'price_id' => $item['price_id'],
+                    'quantity' => $item['quantity'],
+                ];
+            }, $productModels);
+            
+            $redirectPath = $sourcePath ?? ($geoData['currency'] === 'CAD' ? '/cccportal/order' : '/pinksky/order');
+            
+            $formSession->metadata = [
+                'user_agent' => request()->userAgent(),
+                'location' => null,
+                'order_type' => 'order_sheet',
+                'source_path' => $redirectPath,
+                'currency' => $geoData['currency'],
+                'country_code' => $geoData['country_code'],
+                'raw' => [
+                    'firstName' => $firstName,
+                    'lastName' => $lastName,
+                    'email' => $email,
+                    'phoneNumber' => $phone,
+                    'account_number' => $accountNumber,
+                    'location' => $location,
+                    'shipping_address' => $shippingAddress,
+                    'additional_information' => $additionalInformation,
+                    'discount_code' => $discountCode,
+                    'selectedProducts' => $selectedProducts,
+                ],
+            ];
+            $formSession->save();
+        } else {
+            $formSession = $this->createOrderSheetFormSession(
+                $user,
+                $productModels,
+                $firstName,
+                $lastName,
+                $email,
+                $phone,
+                $accountNumber,
+                $location,
+                $shippingAddress,
+                $additionalInformation,
+                $sourcePath,
+                $geoData['currency'],
+                $discountCode
+            );
+        }
 
         // Determine redirect path: use source_path if provided, otherwise default based on currency
         $redirectPath = $sourcePath ?? ($geoData['currency'] === 'CAD' ? '/cccportal/order' : '/pinksky/order');
@@ -590,9 +641,9 @@ class DirectCheckoutService
             }, $productModels),
             'user' => [
                 'id' => $user->id,
-                'first_name' => $user->first_name,
-                'last_name' => $user->last_name,
-                'email' => $user->email,
+                'first_name' => $firstName,
+                'last_name' => $lastName,
+                'email' => $email,
             ],
             'customer_info' => [
                 'first_name' => $firstName,
@@ -632,7 +683,8 @@ class DirectCheckoutService
         ?string $shippingAddress,
         ?string $additionalInformation,
         ?string $sourcePath = null,
-        ?string $currency = null
+        ?string $currency = null,
+        ?string $discountCode = null
     ): FormSession {
         $selectedProducts = array_map(function ($item) {
             return [
@@ -666,6 +718,7 @@ class DirectCheckoutService
                     'location' => $location,
                     'shipping_address' => $shippingAddress,
                     'additional_information' => $additionalInformation,
+                    'discount_code' => $discountCode,
                     'selectedProducts' => $selectedProducts,
                 ],
             ],
@@ -684,6 +737,7 @@ class DirectCheckoutService
 
         // Get form session
         $formSession = FormSession::findOrFail($formSessionId);
+
         $metadata = $formSession->metadata;
         
         if (($metadata['order_type'] ?? null) !== 'order_sheet') {

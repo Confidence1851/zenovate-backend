@@ -6,6 +6,7 @@ use App\Exceptions\GeneralException;
 use App\Helpers\ApiConstants;
 use App\Helpers\ApiHelper;
 use App\Http\Controllers\Controller;
+use App\Models\FormSession;
 use App\Services\DirectCheckout\DirectCheckoutService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -94,6 +95,7 @@ class DirectCheckoutController extends Controller
                 'discount_code' => 'nullable|string',
                 'currency' => 'nullable|string|in:USD,CAD',
                 'source_path' => 'nullable|string|max:255',
+                'ref' => 'nullable|string|max:255',
             ]);
 
             $service = new DirectCheckoutService;
@@ -109,7 +111,8 @@ class DirectCheckoutController extends Controller
                 $validated['additional_information'] ?? null,
                 $validated['discount_code'] ?? null,
                 $validated['currency'] ?? null,
-                $validated['source_path'] ?? null
+                $validated['source_path'] ?? null,
+                $validated['ref'] ?? null
             );
 
             return ApiHelper::validResponse(
@@ -327,14 +330,8 @@ class DirectCheckoutController extends Controller
                 'form_session_id' => 'required|string',
                 'recaptcha_token' => 'nullable|string',
             ]);
-
-            Log::info('Processing direct checkout', [
-                'form_session_id' => $validated['form_session_id'],
-                'form_session_id_int' => (int) $validated['form_session_id'],
-            ]);
-
             // Get form session to determine order type
-            $formSession = \App\Models\FormSession::findOrFail((int) $validated['form_session_id']);
+            $formSession = FormSession::findOrFail($validated['form_session_id']);
             $orderType = $formSession->metadata['order_type'] ?? 'regular';
 
             $service = new DirectCheckoutService;
