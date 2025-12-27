@@ -16,7 +16,8 @@ use Throwable;
 class DirectCheckoutController extends Controller
 {
     /**
-     * Initialize direct checkout
+     * Initialize direct checkout (pure calculation, no form session creation)
+     * Form session is created when user clicks "Proceed to Checkout"
      */
     public function init(Request $request)
     {
@@ -28,17 +29,60 @@ class DirectCheckoutController extends Controller
                 'last_name' => 'required|string|max:255',
                 'email' => 'required|email|max:255',
                 'use_type' => 'nullable|string|in:patient,clinic',
+                'source_path' => 'nullable|string|max:255',
             ]);
 
             $service = new DirectCheckoutService;
-            $checkoutData = $service->initializeCheckout(
+            
+            // Calculate totals (pure calculation, no form session creation)
+            $totals = $service->calculateDirectCheckoutTotals(
                 $validated['product_id'],
                 $validated['price_id'],
+                null // no discount code on initial load
+            );
+            
+            // Get product for display info
+            $product = \App\Models\Product::findOrFail($validated['product_id']);
+            $priceData = json_decode(\App\Helpers\Helper::decrypt($validated['price_id']), true);
+            
+            // Find or create user (for future form session creation)
+            $user = $service->findOrCreateUserForCheckout(
                 $validated['first_name'],
                 $validated['last_name'],
-                $validated['email'],
-                $validated['use_type'] ?? null
+                $validated['email']
             );
+            
+            // Get geo data
+            $geoData = $service->getGeoDataForCheckout();
+            
+            // Return checkout info without form session
+            $checkoutData = [
+                'product_id' => $validated['product_id'],
+                'price_id' => $validated['price_id'],
+                'use_type' => $validated['use_type'] ?? null,
+                'user' => [
+                    'id' => $user->id,
+                    'first_name' => $user->first_name,
+                    'last_name' => $user->last_name,
+                    'email' => $user->email,
+                ],
+                'product' => [
+                    'id' => $product->id,
+                    'name' => $product->name,
+                    'selected_price' => $priceData['value'] ?? [],
+                ],
+                'sub_total' => $totals['sub_total'],
+                'shipping_fee' => $totals['shipping_fee'],
+                'tax_rate' => $totals['tax_rate'],
+                'tax_amount' => $totals['tax_amount'],
+                'discount_code' => null,
+                'discount_amount' => 0,
+                'total' => $totals['total'],
+                'currency' => $geoData['currency'],
+                'country_code' => $geoData['country_code'],
+                'country' => $geoData['country'],
+                'source_path' => $validated['source_path'] ?? '/products',
+            ];
 
             return ApiHelper::validResponse(
                 'Checkout initialized successfully',
@@ -240,7 +284,7 @@ class DirectCheckoutController extends Controller
         $isMultiProduct = in_array($orderType, ['order_sheet', 'cart']);
         $currency = $isMultiProduct ? 'USD' : ($payment->currency ?? 'USD');
 
-        // Products: for order_sheet and cart, use paymentProducts; otherwise try product from form session metadata
+        // Products: for order_sheet and cart, use paymentProducts; for regular, get from formSession metadata
         $products = [];
         if ($isMultiProduct) {
             foreach ($payment->paymentProducts as $pp) {
@@ -266,20 +310,20 @@ class DirectCheckoutController extends Controller
                 ];
             }
         } else {
-            // Regular: attempt single product from payment->product or metadata
-            if ($payment->product) {
-                $product = $payment->product;
-                $selectedPrice = $product->selected_price ?? [
-                    'value' => (float) ($payment->amount ?? 0),
-                    'currency' => $currency,
-                ];
-                $products[] = [
-                    'product_id' => $product->id,
-                    'product_slug' => $product->slug,
-                    'name' => $product->name,
-                    'selected_price' => $selectedPrice,
-                    'quantity' => 1,
-                ];
+            // Regular direct checkout: get product from formSession metadata
+            $metadata = $formSession->metadata ?? [];
+            if (isset($metadata['product_id']) && isset($metadata['selected_price'])) {
+                $product = \App\Models\Product::find($metadata['product_id']);
+                if ($product) {
+                    $selectedPrice = $metadata['selected_price'];
+                    $products[] = [
+                        'product_id' => $product->id,
+                        'product_slug' => $product->slug,
+                        'name' => $product->name,
+                        'selected_price' => $selectedPrice,
+                        'quantity' => 1,
+                    ];
+                }
             }
         }
 
@@ -322,29 +366,54 @@ class DirectCheckoutController extends Controller
 
     /**
      * Process payment and redirect to Stripe
+     * Creates form session on-demand when user clicks "Proceed to Checkout"
      */
     public function process(Request $request)
     {
         try {
             $validated = $request->validate([
-                'form_session_id' => 'required|string',
+                'product_id' => 'required|integer|exists:products,id',
+                'price_id' => 'required|string',
+                'first_name' => 'required|string|max:255',
+                'last_name' => 'required|string|max:255',
+                'email' => 'required|email|max:255',
+                'use_type' => 'nullable|string|in:patient,clinic',
+                'discount_code' => 'nullable|string',
+                'source_path' => 'nullable|string|max:255',
                 'recaptcha_token' => 'nullable|string',
             ]);
-            // Get form session to determine order type
-            $formSession = FormSession::findOrFail($validated['form_session_id']);
-            $orderType = $formSession->metadata['order_type'] ?? 'regular';
 
             $service = new DirectCheckoutService;
-            $recaptchaToken = $validated['recaptcha_token'] ?? null;
-            $formSessionId = $validated['form_session_id'];
-
-            if ($orderType === 'order_sheet') {
-                $result = $service->processOrderSheetPayment($formSessionId, $recaptchaToken);
-            } elseif ($orderType === 'cart') {
-                $result = $service->processCartPayment($formSessionId, $recaptchaToken);
-            } else {
-                $result = $service->processPayment($formSessionId, $recaptchaToken);
+            
+            // Create form session NOW (when user clicks "Proceed to Checkout")
+            $product = \App\Models\Product::findOrFail($validated['product_id']);
+            $priceData = json_decode(\App\Helpers\Helper::decrypt($validated['price_id']), true);
+            if (! $priceData || $priceData['product_id'] != $validated['product_id']) {
+                throw new \Exception('Invalid price ID');
             }
+            
+            $user = $service->findOrCreateUserForCheckout(
+                $validated['first_name'],
+                $validated['last_name'],
+                $validated['email']
+            );
+            
+            // Use the existing initializeCheckout method which creates the form session
+            $checkoutData = $service->initializeCheckout(
+                $validated['product_id'],
+                $validated['price_id'],
+                $validated['first_name'],
+                $validated['last_name'],
+                $validated['email'],
+                $validated['use_type'] ?? null,
+                $validated['discount_code'] ?? null
+            );
+            
+            $formSessionId = $checkoutData['form_session_id'];
+            $recaptchaToken = $validated['recaptcha_token'] ?? null;
+
+            // Process the payment
+            $result = $service->processPayment($formSessionId, $recaptchaToken);
 
             return ApiHelper::validResponse(
                 'Payment processed successfully',
@@ -453,11 +522,11 @@ class DirectCheckoutController extends Controller
     {
         try {
             $validated = $request->validate([
-                'checkout_id' => 'required|string',
+                'session_id' => 'required|string',
             ]);
 
             $service = new DirectCheckoutService;
-            $result = $service->processOrderSheetPayment($validated['checkout_id']);
+            $result = $service->processOrderSheetPayment($validated['session_id']);
 
             return ApiHelper::validResponse(
                 'Payment processed successfully',
@@ -693,13 +762,13 @@ class DirectCheckoutController extends Controller
     {
         try {
             $validated = $request->validate([
-                'checkout_id' => 'required|string',
+                'session_id' => 'required|string',
                 'recaptcha_token' => 'nullable|string',
             ]);
 
             $service = new DirectCheckoutService;
             $recaptchaToken = $validated['recaptcha_token'] ?? null;
-            $result = $service->processCartPayment($validated['checkout_id'], $recaptchaToken);
+            $result = $service->processCartPayment($validated['session_id'], $recaptchaToken);
 
             return ApiHelper::validResponse(
                 'Payment processed successfully',
@@ -786,6 +855,96 @@ class DirectCheckoutController extends Controller
 
             return ApiHelper::problemResponse(
                 'An error occurred while calculating cart summary. Please try again later.',
+                ApiConstants::SERVER_ERR_CODE,
+                $request,
+                $e
+            );
+        }
+    }
+
+    /**
+     * Calculate totals for direct checkout with optional discount (no side effects)
+     * Supports single product or multiple products
+     */
+    public function calculateTotals(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                'product_id' => 'nullable|integer|exists:products,id',
+                'price_id' => 'nullable|string',
+                'products' => 'nullable|array|min:1',
+                'products.*.product_id' => 'required|integer|exists:products,id',
+                'products.*.price_id' => 'required|string',
+                'products.*.quantity' => 'nullable|integer|min:1',
+                'discount_code' => 'nullable|string',
+                'location' => 'nullable|string|max:255',
+            ]);
+
+            $service = new DirectCheckoutService;
+            
+            // Handle single product (direct checkout)
+            if ($validated['product_id'] && $validated['price_id']) {
+                $totals = $service->calculateDirectCheckoutTotals(
+                    $validated['product_id'],
+                    $validated['price_id'],
+                    $validated['discount_code'] ?? null
+                );
+            } 
+            // Handle multiple products (cart or order sheet)
+            elseif ($validated['products']) {
+                $totals = $service->calculateOrderSheetTotals(
+                    $validated['products'],
+                    $validated['discount_code'] ?? null,
+                    null,
+                    $validated['location'] ?? null
+                );
+            }
+            else {
+                throw new \Exception('Either product_id/price_id or products array is required');
+            }
+
+            return ApiHelper::validResponse(
+                'Checkout totals calculated successfully',
+                $totals
+            );
+        } catch (ValidationException $e) {
+            return ApiHelper::inputErrorResponse(
+                $e->getMessage(),
+                ApiConstants::VALIDATION_ERR_CODE,
+                $request,
+                $e
+            );
+        } catch (\Exception $e) {
+            // Check if it's a discount validation error (client-facing message)
+            $message = $e->getMessage();
+            if (strpos($message, 'Invalid or expired discount code') !== false) {
+                return ApiHelper::problemResponse(
+                    $message,
+                    ApiConstants::VALIDATION_ERR_CODE
+                );
+            }
+
+            Log::error('Checkout totals calculation failed', [
+                'error' => $message,
+                'trace' => $e->getTraceAsString(),
+                'request' => $request->all()
+            ]);
+
+            return ApiHelper::problemResponse(
+                $message,
+                ApiConstants::BAD_REQ_ERR_CODE,
+                $request,
+                $e
+            );
+        } catch (Throwable $e) {
+            Log::error('Checkout totals calculation failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'request' => $request->all()
+            ]);
+
+            return ApiHelper::problemResponse(
+                'An error occurred while calculating totals. Please try again later.',
                 ApiConstants::SERVER_ERR_CODE,
                 $request,
                 $e

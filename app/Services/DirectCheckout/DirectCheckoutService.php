@@ -29,7 +29,8 @@ class DirectCheckoutService
         string $firstName,
         string $lastName,
         string $email,
-        ?string $useType = null
+        ?string $useType = null,
+        ?string $discountCode = null
     ): array {
         $product = Product::findOrFail($productId);
 
@@ -46,7 +47,7 @@ class DirectCheckoutService
         $user = $this->findOrCreateUser($firstName, $lastName, $email);
 
         // Create form session for direct checkout
-        $formSession = $this->createFormSession($user, $product, $priceId, $selectedPrice, $useType);
+        $formSession = $this->createFormSession($user, $product, $priceId, $selectedPrice, $useType, $discountCode);
 
         // Get location-based currency and country
         $geoData = $this->getGeoData();
@@ -57,13 +58,33 @@ class DirectCheckoutService
         $taxRate = $this->getTaxRate($product);
         $taxAmount = $subTotal * ($taxRate / 100);
 
+        // Apply discount if provided
+        $discountAmount = 0;
+        $appliedDiscountCode = null;
+        if ($discountCode) {
+            try {
+                $discountService = new DiscountCodeService();
+                $validatedDiscount = $discountService->validate($discountCode);
+                
+                if ($validatedDiscount) {
+                    // Calculate discount amount based on the discount type
+                    $discountAmount = $discountService->calculateDiscount($subTotal, $validatedDiscount);
+                    $appliedDiscountCode = $validatedDiscount->code;
+                } else {
+                    // Invalid discount code - log and continue without discount
+                    Log::warning('Invalid or expired discount code in direct checkout', ['code' => $discountCode]);
+                }
+            } catch (\Exception $e) {
+                // Error validating discount code - continue without discount
+                Log::warning('Error validating discount code in direct checkout', ['code' => $discountCode, 'error' => $e->getMessage()]);
+            }
+        }
+
         // Initial total (will be recalculated after discount if applied)
-        $total = $subTotal + $shippingFee + $taxAmount;
+        $total = $subTotal + $shippingFee + $taxAmount - $discountAmount;
 
         // Create checkout data
-        $checkoutId = 'checkout_' . uniqid();
         $checkoutData = [
-            'checkout_id' => $checkoutId,
             'form_session_id' => $formSession->id,
             'product_id' => $productId,
             'price_id' => $priceId,
@@ -83,8 +104,8 @@ class DirectCheckoutService
             'shipping_fee' => round($shippingFee, 2),
             'tax_rate' => $taxRate,
             'tax_amount' => round($taxAmount, 2),
-            'discount_code' => null,
-            'discount_amount' => 0,
+            'discount_code' => $appliedDiscountCode,
+            'discount_amount' => $discountAmount,
             'total' => round($total, 2),
             'currency' => $geoData['currency'],
             'country_code' => $geoData['country_code'],
@@ -92,6 +113,22 @@ class DirectCheckoutService
         ];
 
         return $checkoutData;
+    }
+
+    /**
+     * Find or create user by email (public wrapper for controller use)
+     */
+    public function findOrCreateUserForCheckout(string $firstName, string $lastName, string $email): User
+    {
+        return $this->findOrCreateUser($firstName, $lastName, $email);
+    }
+
+    /**
+     * Get geo data for checkout (public wrapper for controller use)
+     */
+    public function getGeoDataForCheckout(): array
+    {
+        return $this->getGeoData();
     }
 
     /**
@@ -126,7 +163,8 @@ class DirectCheckoutService
         Product $product,
         string $priceId,
         array $selectedPrice,
-        ?string $useType
+        ?string $useType,
+        ?string $discountCode = null
     ): FormSession {
         return FormSession::create([
             'status' => StatusConstants::PENDING,
@@ -134,8 +172,13 @@ class DirectCheckoutService
             'reference' => $this->generateReference(),
             'user_id' => $user->id,
             'metadata' => [
+                'order_type' => 'regular',
+                'product_id' => $product->id,
+                'selected_price' => $selectedPrice,
+                'source_path' => request()->input('source_path', '/products'),
                 'user_agent' => request()->userAgent(),
                 'location' => null,
+                'discount_code' => $discountCode, // Store discount code for later use in processPayment()
                 'raw' => [
                     'firstName' => $user->first_name,
                     'lastName' => $user->last_name,
@@ -242,17 +285,40 @@ class DirectCheckoutService
         $taxRate = $this->getTaxRate($product);
         $taxAmount = $subTotal * ($taxRate / 100);
 
+        // Apply discount if stored in metadata
+        $discountCode = $metadata['discount_code'] ?? null;
+        $discountAmount = 0;
+        if ($discountCode) {
+            try {
+                $discountService = new DiscountCodeService();
+                $validatedDiscount = $discountService->validate($discountCode);
+                if ($validatedDiscount) {
+                    $discountAmount = $discountService->calculateDiscount($subTotal, $validatedDiscount);
+                }
+            } catch (\Exception $e) {
+                Log::warning('Error applying discount in processPayment', [
+                    'discount_code' => $discountCode,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        // Calculate final totals with discount
+        $discountedSubtotal = max(0, $subTotal - $discountAmount);
+        $finalTaxAmount = $discountedSubtotal * ($taxRate / 100);
+        $finalTotal = $discountedSubtotal + $shippingFee + $finalTaxAmount;
+
         // Prepare data for ProcessorService
         $paymentData = [
             'sub_total' => round($subTotal, 2),
             'currency' => $metadata['currency'] ?? 'USD',
-            'total' => round($subTotal + $shippingFee + $taxAmount, 2),
+            'total' => round($finalTotal, 2),
             'shipping_fee' => round($shippingFee, 2),
             'tax_rate' => $taxRate,
-            'tax_amount' => round($taxAmount, 2),
+            'tax_amount' => round($finalTaxAmount, 2),
             'country_code' => $metadata['country_code'] ?? 'US',
-            'discount_code' => null,
-            'discount_amount' => 0,
+            'discount_code' => $discountCode,
+            'discount_amount' => round($discountAmount, 2),
             'products' => collect([$product]),
         ];
 
@@ -914,7 +980,9 @@ class DirectCheckoutService
             $accountNumber,
             $location,
             $shippingAddress,
-            $additionalInformation
+            $additionalInformation,
+            $discountCode,
+            $geoData['currency'] ?? 'USD'
         );
 
         // Create checkout data
@@ -975,7 +1043,9 @@ class DirectCheckoutService
         string $accountNumber,
         string $location,
         ?string $shippingAddress,
-        ?string $additionalInformation
+        ?string $additionalInformation,
+        ?string $discountCode = null,
+        ?string $currency = null
     ): FormSession {
         $selectedProducts = array_map(function ($item) {
             return [
@@ -994,6 +1064,8 @@ class DirectCheckoutService
                 'user_agent' => request()->userAgent(),
                 'location' => null,
                 'order_type' => 'cart',
+                'currency' => $currency ?? 'USD',
+                'country_code' => 'US',
                 'raw' => [
                     'firstName' => $firstName,
                     'lastName' => $lastName,
@@ -1003,6 +1075,7 @@ class DirectCheckoutService
                     'location' => $location,
                     'shipping_address' => $shippingAddress,
                     'additional_information' => $additionalInformation,
+                    'discount_code' => $discountCode,
                     'selectedProducts' => $selectedProducts,
                 ],
             ],
@@ -1236,4 +1309,77 @@ class DirectCheckoutService
             'total' => round($total, 2),
         ];
     }
+
+    /**
+     * Calculate direct checkout totals with optional discount
+     * Pure calculation endpoint - no form session creation
+     * 
+     * @param int $productId
+     * @param string $priceId
+     * @param string|null $discountCode
+     * @return array Totals including discount
+     * @throws \Exception
+     */
+    public function calculateDirectCheckoutTotals(
+        int $productId,
+        string $priceId,
+        ?string $discountCode = null
+    ): array {
+        $product = Product::findOrFail($productId);
+
+        // Decrypt price_id to get price information
+        $priceData = json_decode(Helper::decrypt($priceId), true);
+        if (! $priceData || $priceData['product_id'] != $productId) {
+            throw new \Exception('Invalid price ID');
+        }
+
+        $selectedPrice = $priceData['value'];
+
+        // Calculate base totals
+        $subTotal = $selectedPrice['value'];
+        $shippingFee = $this->getShippingFee($product);
+        $taxRate = $this->getTaxRate($product);
+
+        // Apply discount if provided
+        $discountAmount = 0;
+        $appliedDiscountCode = null;
+        if ($discountCode) {
+            try {
+                $discountService = new DiscountCodeService();
+                $validatedDiscount = $discountService->validate($discountCode);
+                
+                if ($validatedDiscount) {
+                    $discountAmount = $discountService->calculateDiscount($subTotal, $validatedDiscount);
+                    $appliedDiscountCode = $validatedDiscount->code;
+                } else {
+                    throw new \Exception('Invalid or expired discount code. Please check and try again.');
+                }
+            } catch (\Exception $e) {
+                throw $e;
+            }
+        }
+
+        // Calculate tax on discounted subtotal only
+        $discountedSubtotal = max(0, $subTotal - $discountAmount);
+        $taxAmount = $discountedSubtotal * ($taxRate / 100);
+
+        // If discount is 100%, set shipping to 0
+        if ($discountedSubtotal == 0 && $discountAmount > 0) {
+            $shippingFee = 0;
+        }
+
+        // Calculate total
+        $total = $discountedSubtotal + $shippingFee + $taxAmount;
+
+        return [
+            'sub_total' => round($subTotal, 2),
+            'shipping_fee' => round($shippingFee, 2),
+            'tax_rate' => $taxRate,
+            'tax_amount' => round($taxAmount, 2),
+            'discount_code' => $appliedDiscountCode,
+            'discount_amount' => round($discountAmount, 2),
+            'total' => round($total, 2),
+        ];
+    }
+
 }
