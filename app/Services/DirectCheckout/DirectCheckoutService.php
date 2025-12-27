@@ -91,9 +91,6 @@ class DirectCheckoutService
             'country' => $geoData['country'],
         ];
 
-        // Store in cache for 30 minutes
-        cache()->put("direct_checkout_{$checkoutId}", $checkoutData, now()->addHours(2));
-
         return $checkoutData;
     }
 
@@ -209,108 +206,58 @@ class DirectCheckoutService
     /**
      * Process payment using form session flow
      */
-    public function processPayment(string $checkoutId, ?string $recaptchaToken = null): array
+    public function processPayment($formSessionId, ?string $recaptchaToken = null): array
     {
         // Verify reCAPTCHA if token is provided
         if ($recaptchaToken) {
             $this->verifyRecaptcha($recaptchaToken);
         }
 
-        $checkoutData = cache()->get("direct_checkout_{$checkoutId}");
-
-        // If not in cache and this is a resumed payment (ref_*), rebuild from database
-        if (! $checkoutData && str_starts_with($checkoutId, 'ref_')) {
-            $ref = substr($checkoutId, 4); // Remove 'ref_' prefix
-            $existingPayment = \App\Models\Payment::where('reference', $ref)->first();
-            if (! $existingPayment) {
-                throw new \Exception('Checkout session expired or not found');
-            }
-
-            // Rebuild checkout data from payment record
-            $paymentProducts = $existingPayment->paymentProducts()->with('product')->get();
-            $productsData = $paymentProducts->map(function ($paymentProduct) {
-                $rawPrice = $paymentProduct->getOriginal('price');
-                if (is_array($rawPrice)) {
-                    $price = $rawPrice;
-                } elseif (is_string($rawPrice)) {
-                    $decoded = json_decode($rawPrice, true);
-                    if (is_array($decoded)) {
-                        $price = $decoded;
-                    } else {
-                        $price = [];
-                    }
-                } else {
-                    $price = [];
-                }
-                return [
-                     'product_id' => $paymentProduct->product_id,
-                     'id' => $paymentProduct->product_id,
-                     'name' => $paymentProduct->product->name ?? 'Unknown Product',
-                     'quantity' => $paymentProduct->quantity,
-                     'selected_price' => $price,
-                 ];
-            });
-
-            $firstProduct = $productsData->first();
-             $checkoutData = [
-                 'checkout_id' => $checkoutId,
-                 'form_session_id' => $existingPayment->form_session_id,
-                 'order_type' => 'regular',
-                 'product_id' => $firstProduct['id'] ?? null,
-                 'product' => [
-                     'id' => $firstProduct['id'] ?? null,
-                     'name' => $firstProduct['name'] ?? null,
-                     'selected_price' => $firstProduct['selected_price'] ?? null,
-                 ],
-                'sub_total' => $existingPayment->sub_total,
-                'discount_code' => $existingPayment->discount_code,
-                'discount_amount' => $existingPayment->discount_amount ?? 0,
-                'tax_rate' => $existingPayment->tax_rate ?? 0,
-                'tax_amount' => $existingPayment->tax_amount ?? 0,
-                'shipping_fee' => $existingPayment->shipping_fee,
-                'total' => $existingPayment->total,
-                'currency' => $existingPayment->currency,
-                'country_code' => 'US',
-                'country' => 'United States',
-            ];
-        }
-
-        if (! $checkoutData) {
-            throw new \Exception('Checkout session expired or not found');
-        }
-
         // Get form session
-        $formSession = FormSession::findOrFail($checkoutData['form_session_id']);
-
-        // Update form session metadata with discount info if applied
+        $formSession = FormSession::findOrFail($formSessionId);
         $metadata = $formSession->metadata;
-        $metadata['raw']['discount_code'] = $checkoutData['discount_code'];
-        $metadata['raw']['discount_amount'] = $checkoutData['discount_amount'];
-        $formSession->update(['metadata' => $metadata]);
+        $rawData = $metadata['raw'] ?? [];
+        $selectedProducts = $rawData['selectedProducts'] ?? [];
 
-        // Get product with selected price
-        $product = Product::findOrFail($checkoutData['product_id']);
-        $product->selected_price = $checkoutData['product']['selected_price'];
+        if (empty($selectedProducts)) {
+            throw new \Exception('No products found in session');
+        }
 
-        // Prepare data for ProcessorService (same format as form checkout)
+        // Get first product
+        $firstProductData = $selectedProducts[0];
+        $product = Product::findOrFail($firstProductData['product_id']);
+
+        // Decrypt price_id to get price information
+        $priceData = json_decode(Helper::decrypt($firstProductData['price_id']), true);
+        if (! $priceData) {
+            throw new \Exception('Invalid price data');
+        }
+
+        $selectedPrice = $priceData['value'];
+        $product->selected_price = $selectedPrice;
+
+        // Calculate totals from product
+        $subTotal = $selectedPrice['value'];
+        $shippingFee = $this->getShippingFee($product);
+        $taxRate = $this->getTaxRate($product);
+        $taxAmount = $subTotal * ($taxRate / 100);
+
+        // Prepare data for ProcessorService
         $paymentData = [
-            'sub_total' => $checkoutData['sub_total'],
-            'currency' => $checkoutData['currency'],
-            'total' => $checkoutData['total'],
-            'shipping_fee' => $checkoutData['shipping_fee'],
-            'tax_rate' => $checkoutData['tax_rate'],
-            'tax_amount' => $checkoutData['tax_amount'],
-            'country_code' => $checkoutData['country_code'],
-            'discount_code' => $checkoutData['discount_code'],
-            'discount_amount' => $checkoutData['discount_amount'],
+            'sub_total' => round($subTotal, 2),
+            'currency' => $metadata['currency'] ?? 'USD',
+            'total' => round($subTotal + $shippingFee + $taxAmount, 2),
+            'shipping_fee' => round($shippingFee, 2),
+            'tax_rate' => $taxRate,
+            'tax_amount' => round($taxAmount, 2),
+            'country_code' => $metadata['country_code'] ?? 'US',
+            'discount_code' => null,
+            'discount_amount' => 0,
             'products' => collect([$product]),
         ];
 
         // Use existing ProcessorService to create payment
         $result = (new ProcessorService)->initiate($formSession, $paymentData);
-
-        // Clear checkout cache
-        cache()->forget("direct_checkout_{$checkoutId}");
 
         return $result;
     }
@@ -515,7 +462,6 @@ class DirectCheckoutService
     /**
      * Initialize order sheet checkout with multiple products
      * Creates form session when proceeding to actual checkout
-     * If ref is provided, it's cleared and new checkout is recalculated with new parameters
      */
     public function initializeOrderSheetCheckout(
         array $products, // [{product_id, price_id, quantity}, ...]
@@ -529,28 +475,8 @@ class DirectCheckoutService
         ?string $additionalInformation = null,
         ?string $discountCode = null,
         ?string $currency = null,
-        ?string $sourcePath = null,
-        ?string $ref = null
+        ?string $sourcePath = null
     ): array {
-        // If ref is provided, clear the old cached checkout and recalculate with new params
-        // This ensures product/discount changes are applied
-        if ($ref) {
-            $checkoutId = 'ref_' . $ref;
-            cache()->forget("direct_checkout_{$checkoutId}");
-        }
-        // Create idempotency key to prevent duplicate orders from double-submissions
-        $idempotencyKey = 'order_sheet_' . md5(json_encode([
-            'email' => $email,
-            'products' => $products,
-            'discount_code' => $discountCode,
-        ]));
-
-        // Check if we already processed this exact request in the last 5 minutes
-        $existingCheckout = cache()->get($idempotencyKey);
-        if ($existingCheckout) {
-            return $existingCheckout;
-        }
-
         // Find or create user by email
         $user = $this->findOrCreateUser($firstName, $lastName, $email);
 
@@ -647,14 +573,10 @@ class DirectCheckoutService
             $geoData['currency']
         );
 
-        // Create checkout data
-        $checkoutId = 'order_sheet_' . uniqid();
-
         // Determine redirect path: use source_path if provided, otherwise default based on currency
         $redirectPath = $sourcePath ?? ($geoData['currency'] === 'CAD' ? '/cccportal/order' : '/pinksky/order');
 
-        $checkoutData = [
-            'checkout_id' => $checkoutId,
+        return [
             'form_session_id' => $formSession->id,
             'order_type' => 'order_sheet',
             'source_path' => $redirectPath,
@@ -693,14 +615,6 @@ class DirectCheckoutService
             'country_code' => $geoData['country_code'],
             'country' => $geoData['country'],
         ];
-
-        // Store in cache for 30 minutes
-        cache()->put("direct_checkout_{$checkoutId}", $checkoutData, now()->addHours(2));
-
-        // Cache the checkout result to prevent duplicate orders from double-submissions (5 minutes)
-        cache()->put($idempotencyKey, $checkoutData, now()->addHours(1));
-
-        return $checkoutData;
     }
 
     /**
@@ -741,6 +655,8 @@ class DirectCheckoutService
                 'location' => null,
                 'order_type' => 'order_sheet',
                 'source_path' => $redirectPath,
+                'currency' => $currency,
+                'country_code' => 'US',
                 'raw' => [
                     'firstName' => $firstName,
                     'lastName' => $lastName,
@@ -759,155 +675,80 @@ class DirectCheckoutService
     /**
      * Process order sheet payment
      */
-    public function processOrderSheetPayment(string $checkoutId, ?string $recaptchaToken = null): array
+    public function processOrderSheetPayment($formSessionId, ?string $recaptchaToken = null): array
     {
         // Verify reCAPTCHA if token is provided
         if ($recaptchaToken) {
             $this->verifyRecaptcha($recaptchaToken);
         }
 
-        $checkoutData = cache()->get("direct_checkout_{$checkoutId}");
-
-        // If not in cache and this is a resumed payment (ref_*), rebuild from database
-        if (! $checkoutData && str_starts_with($checkoutId, 'ref_')) {
-            $ref = substr($checkoutId, 4); // Remove 'ref_' prefix
-            $existingPayment = \App\Models\Payment::where('reference', $ref)->first();
-            if (! $existingPayment) {
-                throw new \Exception('Checkout session expired or not found');
-            }
-
-            // Rebuild checkout data from payment record
-            $paymentProducts = $existingPayment->paymentProducts()->with('product')->get();
-            $productsData = $paymentProducts->map(function ($paymentProduct) {
-                $rawPrice = $paymentProduct->getOriginal('price');
-                if (is_array($rawPrice)) {
-                    $price = $rawPrice;
-                } elseif (is_string($rawPrice)) {
-                    $price = json_decode($rawPrice, true);
-                    if (is_object($price)) {
-                        $price = (array) $price;
-                    } elseif (!is_array($price)) {
-                        $price = [];
-                    }
-                } else {
-                    $price = [];
-                }
-                return [
-                     'id' => $paymentProduct->product_id,
-                     'product_id' => $paymentProduct->product_id,
-                     'name' => $paymentProduct->product->name ?? 'Unknown Product',
-                     'quantity' => $paymentProduct->quantity,
-                     'selected_price' => $price,
-                 ];
-            });
-
-            $checkoutData = [
-                'checkout_id' => $checkoutId,
-                'form_session_id' => $existingPayment->form_session_id,
-                'order_type' => 'order_sheet',
-                'products' => $productsData,
-                'sub_total' => $existingPayment->sub_total,
-                'discount_code' => $existingPayment->discount_code,
-                'discount_amount' => $existingPayment->discount_amount ?? 0,
-                'tax_rate' => $existingPayment->tax_rate ?? 0,
-                'tax_amount' => $existingPayment->tax_amount ?? 0,
-                'shipping_fee' => $existingPayment->shipping_fee,
-                'total' => $existingPayment->total,
-                'currency' => $existingPayment->currency,
-                'country_code' => 'US',
-                'country' => 'United States',
-            ];
-        }
-
-        if (! $checkoutData) {
-            throw new \Exception('Checkout session expired or not found');
-        }
-
-        if ($checkoutData['order_type'] !== 'order_sheet') {
+        // Get form session
+        $formSession = FormSession::findOrFail($formSessionId);
+        $metadata = $formSession->metadata;
+        
+        if (($metadata['order_type'] ?? null) !== 'order_sheet') {
             throw new \Exception('Invalid checkout type');
         }
 
-        // Check if payment already exists for this checkout to prevent duplicate orders
-        $existingPaymentId = cache()->get("checkout_payment_{$checkoutId}");
-        if ($existingPaymentId) {
-            $existingPayment = Payment::findOrFail($existingPaymentId);
+        // Get selected products from metadata
+        $rawData = $metadata['raw'] ?? [];
+        $selectedProducts = $rawData['selectedProducts'] ?? [];
 
-            return [
-                'payment' => $existingPayment,
-                'redirect_url' => $existingPayment->payment_reference,
-            ];
+        if (empty($selectedProducts)) {
+            throw new \Exception('No products found in session');
         }
 
-        // Get form session
-        $formSession = FormSession::findOrFail($checkoutData['form_session_id']);
+        // Load products with quantities and prices from metadata
+        $products = collect();
+        foreach ($selectedProducts as $productData) {
+            $product = Product::findOrFail($productData['product_id']);
+            
+            // Decrypt price_id to get price information
+            $priceData = json_decode(Helper::decrypt($productData['price_id']), true);
+            if (! $priceData) {
+                throw new \Exception('Invalid price data for product');
+            }
+            
+            $product->selected_price = $priceData['value'];
+            $product->quantity = (int) ($productData['quantity'] ?? 1);
+            $products->push($product);
+        }
 
-        // Update form session metadata with discount info if applied
-        $metadata = $formSession->metadata;
-        $metadata['raw']['discount_code'] = $checkoutData['discount_code'];
-        $metadata['raw']['discount_amount'] = $checkoutData['discount_amount'];
-        $formSession->update(['metadata' => $metadata]);
-
-        // Load products with quantities
-         $products = collect();
-         foreach ($checkoutData['products'] as $productData) {
-             $productId = is_array($productData) ? ($productData['product_id'] ?? null) : ($productData->product_id ?? null);
-             if (!$productId) {
-                 throw new \Exception('Invalid product data in checkout session');
-             }
-             $product = Product::findOrFail($productId);
-             $product->selected_price = $productData['selected_price'] ?? null;
-             $product->quantity = $productData['quantity'] ?? 1; // Store quantity on product object
-             $products->push($product);
-         }
-
-        // Recalculate all totals to prevent price tampering
-        $recalculated = $this->recalculateOrderSheetTotals(
+        // Recalculate all totals to validate prices
+        $discountCode = $rawData['discount_code'] ?? null;
+        $totals = $this->recalculateOrderSheetTotals(
             $products,
-            $checkoutData['discount_code'] ?? null,
-            $checkoutData['currency'] ?? 'USD'
+            $discountCode,
+            $rawData['currency'] ?? 'USD'
         );
-
-        // Validate that recalculated totals match (allow small rounding differences)
-        $tolerance = 0.01; // Allow 1 cent tolerance for rounding
-        if (abs($recalculated['sub_total'] - $checkoutData['sub_total']) > $tolerance ||
-            abs($recalculated['tax_amount'] - $checkoutData['tax_amount']) > $tolerance ||
-            abs($recalculated['shipping_fee'] - $checkoutData['shipping_fee']) > $tolerance ||
-            abs($recalculated['total'] - $checkoutData['total']) > $tolerance) {
-            
-            Log::warning('Checkout price mismatch detected', [
-                'checkout_id' => $checkoutId,
-                'original' => $checkoutData,
-                'recalculated' => $recalculated,
-            ]);
-            
-            // Use recalculated values (conservative: use the recalculated total)
-            $checkoutData = array_merge($checkoutData, $recalculated);
-        }
 
         // Prepare data for ProcessorService
         $paymentData = [
-            'sub_total' => $checkoutData['sub_total'],
-            'currency' => $checkoutData['currency'],
-            'total' => $checkoutData['total'],
-            'shipping_fee' => $checkoutData['shipping_fee'],
-            'tax_rate' => $checkoutData['tax_rate'],
-            'tax_amount' => $checkoutData['tax_amount'],
-            'country_code' => $checkoutData['country_code'],
-            'discount_code' => $checkoutData['discount_code'],
-            'discount_amount' => $checkoutData['discount_amount'],
+            'sub_total' => $totals['sub_total'],
+            'currency' => $rawData['currency'] ?? 'USD',
+            'total' => $totals['total'],
+            'shipping_fee' => $totals['shipping_fee'],
+            'tax_rate' => $totals['tax_rate'],
+            'tax_amount' => $totals['tax_amount'],
+            'country_code' => $rawData['country_code'] ?? 'US',
+            'discount_code' => $discountCode,
+            'discount_amount' => $totals['discount_amount'],
             'products' => $products,
             'order_type' => 'order_sheet',
-            'customer_info' => $checkoutData['customer_info'],
+            'customer_info' => [
+                'first_name' => $rawData['firstName'] ?? null,
+                'last_name' => $rawData['lastName'] ?? null,
+                'email' => $rawData['email'] ?? null,
+                'phone' => $rawData['phoneNumber'] ?? null,
+                'account_number' => $rawData['account_number'] ?? null,
+                'location' => $rawData['location'] ?? null,
+                'shipping_address' => $rawData['shipping_address'] ?? null,
+                'additional_information' => $rawData['additional_information'] ?? null,
+            ],
         ];
 
-        // Create a new payment/order (ProcessorService::initiate always creates a new Payment record)
+        // Create a new payment/order
         $result = (new ProcessorService)->initiate($formSession, $paymentData);
-
-        // Cache payment ID to prevent duplicate orders on retry (5 minutes)
-        cache()->put("checkout_payment_{$checkoutId}", $result['payment']->id, now()->addHours(1));
-
-        // Clear checkout cache
-        cache()->forget("direct_checkout_{$checkoutId}");
 
         return $result;
     }
@@ -930,13 +771,13 @@ class DirectCheckoutService
         ?string $discountCode = null,
         ?string $ref = null
     ): array {
-        // If ref is provided, clear the old cached checkout and recalculate with new params
+        // If ref is provided, recalculate with new params
         // This ensures product/discount changes are applied
         if ($ref) {
             $checkoutId = 'ref_' . $ref;
-            cache()->forget("direct_checkout_{$checkoutId}");
         }
-                    // Find or create user by email
+        
+        // Find or create user by email
                     $user = $this->findOrCreateUser($firstName, $lastName, $email);
 
                     // Use location field for currency detection: CAD for Canada, USD for others
@@ -1064,9 +905,6 @@ class DirectCheckoutService
             'country' => $geoData['country'],
         ];
 
-        // Store in cache for 30 minutes
-        cache()->put("direct_checkout_{$checkoutId}", $checkoutData, now()->addHours(2));
-
         return $checkoutData;
     }
 
@@ -1120,114 +958,80 @@ class DirectCheckoutService
     /**
      * Process cart payment
      */
-    public function processCartPayment(string $checkoutId, ?string $recaptchaToken = null): array
+    public function processCartPayment($formSessionId, ?string $recaptchaToken = null): array
     {
         // Verify reCAPTCHA if token is provided
         if ($recaptchaToken) {
             $this->verifyRecaptcha($recaptchaToken);
         }
 
-        $checkoutData = cache()->get("direct_checkout_{$checkoutId}");
+        // Get form session
+        $formSession = FormSession::findOrFail($formSessionId);
+        $metadata = $formSession->metadata;
 
-        // If not in cache and this is a resumed payment (ref_*), rebuild from database
-        if (! $checkoutData && str_starts_with($checkoutId, 'ref_')) {
-            $ref = substr($checkoutId, 4); // Remove 'ref_' prefix
-            $existingPayment = \App\Models\Payment::where('reference', $ref)->first();
-            if (! $existingPayment) {
-                throw new \Exception('Checkout session expired or not found');
-            }
-
-            // Rebuild checkout data from payment record
-            $paymentProducts = $existingPayment->paymentProducts()->with('product')->get();
-            $productsData = $paymentProducts->map(function ($paymentProduct) {
-                $rawPrice = $paymentProduct->getOriginal('price');
-                if (is_array($rawPrice)) {
-                    $price = $rawPrice;
-                } elseif (is_string($rawPrice)) {
-                    $decoded = json_decode($rawPrice, true);
-                    if (is_array($decoded)) {
-                        $price = $decoded;
-                    } else {
-                        $price = [];
-                    }
-                } else {
-                    $price = [];
-                }
-                return [
-                     'product_id' => $paymentProduct->product_id,
-                     'id' => $paymentProduct->product_id,
-                     'name' => $paymentProduct->product->name ?? 'Unknown Product',
-                     'quantity' => $paymentProduct->quantity,
-                     'selected_price' => $price,
-                 ];
-            });
-
-            $checkoutData = [
-                'checkout_id' => $checkoutId,
-                'form_session_id' => $existingPayment->form_session_id,
-                'order_type' => 'cart',
-                'products' => $productsData,
-                'sub_total' => $existingPayment->sub_total,
-                'discount_code' => $existingPayment->discount_code,
-                'discount_amount' => $existingPayment->discount_amount ?? 0,
-                'tax_rate' => $existingPayment->tax_rate ?? 0,
-                'tax_amount' => $existingPayment->tax_amount ?? 0,
-                'shipping_fee' => $existingPayment->shipping_fee,
-                'total' => $existingPayment->total,
-                'currency' => $existingPayment->currency,
-                'country_code' => 'US',
-                'country' => 'United States',
-                'customer_info' => [],
-            ];
-        }
-
-        if (! $checkoutData) {
-            throw new \Exception('Checkout session expired or not found');
-        }
-
-        if ($checkoutData['order_type'] !== 'cart') {
+        if (($metadata['order_type'] ?? null) !== 'cart') {
             throw new \Exception('Invalid checkout type');
         }
 
-        // Get form session
-        $formSession = FormSession::findOrFail($checkoutData['form_session_id']);
+        // Get selected products from metadata
+        $rawData = $metadata['raw'] ?? [];
+        $selectedProducts = $rawData['selectedProducts'] ?? [];
 
-        // Update form session metadata with discount info if applied
-        $metadata = $formSession->metadata;
-        $metadata['raw']['discount_code'] = $checkoutData['discount_code'];
-        $metadata['raw']['discount_amount'] = $checkoutData['discount_amount'];
-        $formSession->update(['metadata' => $metadata]);
+        if (empty($selectedProducts)) {
+            throw new \Exception('No products found in session');
+        }
 
-        // Load products with quantities
+        // Load products with quantities and prices from metadata
         $products = collect();
-        foreach ($checkoutData['products'] as $productData) {
+        foreach ($selectedProducts as $productData) {
             $product = Product::findOrFail($productData['product_id']);
-            $product->selected_price = $productData['selected_price'];
-            $product->quantity = $productData['quantity']; // Store quantity on product object
+            
+            // Decrypt price_id to get price information
+            $priceData = json_decode(Helper::decrypt($productData['price_id']), true);
+            if (! $priceData) {
+                throw new \Exception('Invalid price data for product');
+            }
+            
+            $product->selected_price = $priceData['value'];
+            $product->quantity = (int) ($productData['quantity'] ?? 1);
             $products->push($product);
         }
 
+        // Recalculate all totals to validate prices
+        $discountCode = $rawData['discount_code'] ?? null;
+        $totals = $this->recalculateOrderSheetTotals(
+            $products,
+            $discountCode,
+            $rawData['currency'] ?? 'USD'
+        );
+
         // Prepare data for ProcessorService
         $paymentData = [
-            'sub_total' => $checkoutData['sub_total'],
-            'currency' => $checkoutData['currency'],
-            'total' => $checkoutData['total'],
-            'shipping_fee' => $checkoutData['shipping_fee'],
-            'tax_rate' => $checkoutData['tax_rate'],
-            'tax_amount' => $checkoutData['tax_amount'],
-            'country_code' => $checkoutData['country_code'],
-            'discount_code' => $checkoutData['discount_code'],
-            'discount_amount' => $checkoutData['discount_amount'],
+            'sub_total' => $totals['sub_total'],
+            'currency' => $rawData['currency'] ?? 'USD',
+            'total' => $totals['total'],
+            'shipping_fee' => $totals['shipping_fee'],
+            'tax_rate' => $totals['tax_rate'],
+            'tax_amount' => $totals['tax_amount'],
+            'country_code' => $rawData['country_code'] ?? 'US',
+            'discount_code' => $discountCode,
+            'discount_amount' => $totals['discount_amount'],
             'products' => $products,
             'order_type' => 'cart',
-            'customer_info' => $checkoutData['customer_info'],
+            'customer_info' => [
+                'first_name' => $rawData['firstName'] ?? null,
+                'last_name' => $rawData['lastName'] ?? null,
+                'email' => $rawData['email'] ?? null,
+                'phone' => $rawData['phoneNumber'] ?? null,
+                'account_number' => $rawData['account_number'] ?? null,
+                'location' => $rawData['location'] ?? null,
+                'shipping_address' => $rawData['shipping_address'] ?? null,
+                'additional_information' => $rawData['additional_information'] ?? null,
+            ],
         ];
 
         // Create a new payment/order
         $result = (new ProcessorService)->initiate($formSession, $paymentData);
-
-        // Clear checkout cache
-        cache()->forget("direct_checkout_{$checkoutId}");
 
         return $result;
     }

@@ -94,7 +94,6 @@ class DirectCheckoutController extends Controller
                 'discount_code' => 'nullable|string',
                 'currency' => 'nullable|string|in:USD,CAD',
                 'source_path' => 'nullable|string|max:255',
-                'ref' => 'nullable|string|max:255',
             ]);
 
             $service = new DirectCheckoutService;
@@ -110,8 +109,7 @@ class DirectCheckoutController extends Controller
                 $validated['additional_information'] ?? null,
                 $validated['discount_code'] ?? null,
                 $validated['currency'] ?? null,
-                $validated['source_path'] ?? null,
-                $validated['ref'] ?? null
+                $validated['source_path'] ?? null
             );
 
             return ApiHelper::validResponse(
@@ -326,33 +324,29 @@ class DirectCheckoutController extends Controller
     {
         try {
             $validated = $request->validate([
-                'checkout_id' => 'required|string',
+                'form_session_id' => 'required|string',
                 'recaptcha_token' => 'nullable|string',
             ]);
 
-            // Determine checkout type from cache or database
-            $checkoutId = $validated['checkout_id'];
-            $cached = cache()->get("direct_checkout_{$checkoutId}");
-            $orderType = $cached['order_type'] ?? null;
-            
-            // If not in cache and this is a resumed payment (ref_*), get order_type from database
-            if (! $orderType && str_starts_with($checkoutId, 'ref_')) {
-                $ref = substr($checkoutId, 4); // Remove 'ref_' prefix
-                $existingPayment = \App\Models\Payment::where('reference', $ref)->first();
-                $orderType = $existingPayment?->order_type ?? 'regular';
-            }
-            
-            $orderType = $orderType ?? 'regular';
+            Log::info('Processing direct checkout', [
+                'form_session_id' => $validated['form_session_id'],
+                'form_session_id_int' => (int) $validated['form_session_id'],
+            ]);
+
+            // Get form session to determine order type
+            $formSession = \App\Models\FormSession::findOrFail((int) $validated['form_session_id']);
+            $orderType = $formSession->metadata['order_type'] ?? 'regular';
 
             $service = new DirectCheckoutService;
             $recaptchaToken = $validated['recaptcha_token'] ?? null;
+            $formSessionId = $validated['form_session_id'];
 
             if ($orderType === 'order_sheet') {
-                $result = $service->processOrderSheetPayment($checkoutId, $recaptchaToken);
+                $result = $service->processOrderSheetPayment($formSessionId, $recaptchaToken);
             } elseif ($orderType === 'cart') {
-                $result = $service->processCartPayment($checkoutId, $recaptchaToken);
+                $result = $service->processCartPayment($formSessionId, $recaptchaToken);
             } else {
-                $result = $service->processPayment($checkoutId, $recaptchaToken);
+                $result = $service->processPayment($formSessionId, $recaptchaToken);
             }
 
             return ApiHelper::validResponse(
