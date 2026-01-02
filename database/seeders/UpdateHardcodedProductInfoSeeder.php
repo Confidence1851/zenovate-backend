@@ -44,7 +44,7 @@ class UpdateHardcodedProductInfoSeeder extends Seeder
             ],
             'Gloria' => [
                 'subtitle' => 'Antioxidant & Skin Brightening Solution',
-                'description' => '<div><strong>Description:</strong> Gloria is a premium injectable solution containing 200mg/ml of pharmaceutical-grade glutathione designed to support antioxidant defense, skin health, and cellular detoxification.</div>',
+                'description' => '<div><strong>Description:</strong> Gloria is a premium injectable solution containing 200mg/ml of pharmaceutical grade glutathione designed to support antioxidant defense, skin health, and cellular detoxification.</div>',
                 'benefits' => "Powerful antioxidant protection against free radicals\nSupports natural detoxification and liver function\nPromotes skin brightening and even tone\nEnhances cellular health and anti-aging benefits",
                 'key_ingredients' => 'Glutathione',
             ],
