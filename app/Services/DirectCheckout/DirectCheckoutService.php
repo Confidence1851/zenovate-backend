@@ -807,6 +807,9 @@ class DirectCheckoutService
         // Determine redirect path: use source_path if provided, otherwise default based on currency
         $redirectPath = $sourcePath ?? ($currency === 'CAD' ? '/cccportal/order' : '/pinksky/order');
 
+        // Set country code based on currency
+        $countryCode = ($currency === 'CAD') ? 'CA' : 'US';
+
         return FormSession::create([
             'status' => StatusConstants::PENDING,
             'booking_type' => 'direct', // Identify as direct checkout
@@ -818,7 +821,7 @@ class DirectCheckoutService
                 'order_type' => 'order_sheet',
                 'source_path' => $redirectPath,
                 'currency' => $currency,
-                'country_code' => 'US',
+                'country_code' => $countryCode,
                 'raw' => [
                     'firstName' => $firstName,
                     'lastName' => $lastName,
@@ -841,14 +844,15 @@ class DirectCheckoutService
     public function processOrderSheetPayment($formSessionId, ?string $recaptchaToken = null): array
     {
         // Verify reCAPTCHA if token is provided
-        if ($recaptchaToken) {
-            $this->verifyRecaptcha($recaptchaToken);
-        }
+        // if ($recaptchaToken) {
+        //     $this->verifyRecaptcha($recaptchaToken);
+        // }
 
         // Get form session
         $formSession = FormSession::findOrFail($formSessionId);
 
         $metadata = $formSession->metadata;
+
         
         if (($metadata['order_type'] ?? null) !== 'order_sheet') {
             throw new \Exception('Invalid checkout type');
@@ -880,16 +884,17 @@ class DirectCheckoutService
 
         // Recalculate all totals to validate prices
         $discountCode = $rawData['discount_code'] ?? null;
+        $currency = $rawData['currency'] ?? $metadata['currency'] ?? 'USD';
         $totals = $this->recalculateOrderSheetTotals(
             $products,
             $discountCode,
-            $rawData['currency'] ?? 'USD'
+            $currency
         );
 
         // Prepare data for ProcessorService
         $paymentData = [
             'sub_total' => $totals['sub_total'],
-            'currency' => $rawData['currency'] ?? 'USD',
+            'currency' => $currency,
             'total' => $totals['total'],
             'shipping_fee' => $totals['shipping_fee'],
             'tax_rate' => $totals['tax_rate'],
@@ -1168,12 +1173,13 @@ class DirectCheckoutService
             $products->push($product);
         }
 
-        // Recalculate all totals to validate prices
+        // Recalculate all totals to validate prices (for cart, use default tax rate only)
         $discountCode = $rawData['discount_code'] ?? null;
         $totals = $this->recalculateOrderSheetTotals(
             $products,
             $discountCode,
-            $rawData['currency'] ?? 'USD'
+            $rawData['currency'] ?? 'USD',
+            true // use default tax rate only for cart
         );
 
         // Prepare data for ProcessorService
@@ -1289,12 +1295,15 @@ class DirectCheckoutService
 
     /**
      * Recalculate order sheet totals from products to validate against tampering
+     * @param bool $useDefaultTaxRateOnly If true, use default tax rate (for cart). If false, use brand-specific rates (for order sheet).
      */
     private function recalculateOrderSheetTotals(
         $products,
         ?string $discountCode = null,
-        string $currency = 'USD'
+        string $currency = 'USD',
+        bool $useDefaultTaxRateOnly = false
     ): array {
+
         $subTotal = 0;
         $totalTax = 0;
         $defaultShippingFee = (float) config('checkout.shipping_fee', 60);
@@ -1312,8 +1321,10 @@ class DirectCheckoutService
             
             $subTotal += $lineTotal;
             
-            // Calculate tax for this product line (use default tax rate, not brand-specific)
-            $taxRate = $this->getTaxRate($product);
+            // Calculate tax for this product line
+            // For cart: use default tax rate only
+            // For order sheet: use brand-specific rates
+            $taxRate = $useDefaultTaxRateOnly ? $this->getTaxRate($product) : $this->getTaxRate($product, $currency);
             $totalTax += $lineTotal * ($taxRate / 100);
         }
 
