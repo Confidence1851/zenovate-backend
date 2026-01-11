@@ -55,7 +55,7 @@ class DirectCheckoutService
         // Calculate totals
         $subTotal = $selectedPrice['value'];
         $shippingFee = $this->getShippingFee($product);
-        $taxRate = $this->getTaxRate($product);
+        $taxRate = $this->getTaxRate($product, $geoData['currency']);
         $taxAmount = $subTotal * ($taxRate / 100);
 
         // Apply discount if provided
@@ -290,10 +290,13 @@ class DirectCheckoutService
         $selectedPrice = $priceData['value'];
         $product->selected_price = $selectedPrice;
 
+        // Get currency from metadata
+        $currency = $metadata['currency'] ?? null;
+
         // Calculate totals from product
         $subTotal = $selectedPrice['value'];
         $shippingFee = $this->getShippingFee($product);
-        $taxRate = $this->getTaxRate($product);
+        $taxRate = $this->getTaxRate($product, $currency);
         $taxAmount = $subTotal * ($taxRate / 100);
 
         // Apply discount if stored in metadata
@@ -360,13 +363,37 @@ class DirectCheckoutService
     }
 
     /**
-     * Get tax rate (product-specific or global)
+     * Get brand from currency (CAD = cccportal, others = pinksky)
      */
-    private function getTaxRate(Product $product): float
+    private function getBrandFromCurrency(?string $currency = null): ?string
+    {
+        if ($currency === 'CAD') {
+            return 'cccportal';
+        } elseif ($currency === 'USD') {
+            return 'pinksky';
+        }
+        return null;
+    }
+
+    /**
+     * Get tax rate (product-specific, brand-specific, or global)
+     */
+    private function getTaxRate(Product $product, ?string $currency = null): float
     {
         // Check product-specific tax rate first
         if ($product->tax_rate !== null) {
             return (float) $product->tax_rate;
+        }
+
+        // Get brand from currency if available
+        $brand = $this->getBrandFromCurrency($currency);
+        
+        // Check brand-specific tax rate
+        if ($brand) {
+            $brandRate = config("checkout.tax_rates_by_brand.{$brand}");
+            if ($brandRate !== null) {
+                return (float) $brandRate;
+            }
         }
 
         // Fallback to global config
@@ -455,6 +482,16 @@ class DirectCheckoutService
         $totalTax = 0;
         $defaultShippingFee = (float) config('checkout.shipping_fee', 60);
 
+        // Get geo data for currency early so we can use it in tax calculation
+        $geoData = $this->getGeoDataFromLocation($location);
+        if ($currency && in_array(strtoupper($currency), ['USD', 'CAD'])) {
+            $geoData = [
+                'currency' => strtoupper($currency),
+                'country_code' => strtoupper($currency) === 'CAD' ? 'CA' : 'US',
+                'country' => strtoupper($currency) === 'CAD' ? 'Canada' : 'United States',
+            ];
+        }
+
         foreach ($products as $productData) {
             $product = Product::findOrFail($productData['product_id']);
 
@@ -472,7 +509,7 @@ class DirectCheckoutService
             $subTotal += $lineTotal;
 
             // Calculate tax for this product line
-            $taxRate = $this->getTaxRate($product);
+            $taxRate = $this->getTaxRate($product, $geoData['currency']);
             $totalTax += $lineTotal * ($taxRate / 100);
 
             $productModels[] = [
@@ -480,16 +517,6 @@ class DirectCheckoutService
                 'price_id' => $productData['price_id'],
                 'quantity' => $quantity,
                 'selected_price' => $selectedPrice,
-            ];
-        }
-
-        // Get geo data for currency
-        $geoData = $this->getGeoDataFromLocation($location);
-        if ($currency && in_array(strtoupper($currency), ['USD', 'CAD'])) {
-            $geoData = [
-                'currency' => strtoupper($currency),
-                'country_code' => strtoupper($currency) === 'CAD' ? 'CA' : 'US',
-                'country' => strtoupper($currency) === 'CAD' ? 'Canada' : 'United States',
             ];
         }
 
@@ -611,7 +638,7 @@ class DirectCheckoutService
             $subTotal += $lineTotal;
 
             // Calculate tax for this product line
-            $taxRate = $this->getTaxRate($product);
+            $taxRate = $this->getTaxRate($product, $geoData['currency']);
             $totalTax += $lineTotal * ($taxRate / 100);
 
             $productModels[] = [
@@ -943,7 +970,7 @@ class DirectCheckoutService
             $subTotal += $lineTotal;
 
             // Calculate tax for this product line
-            $taxRate = $this->getTaxRate($product);
+            $taxRate = $this->getTaxRate($product, $geoData['currency']);
             $totalTax += $lineTotal * ($taxRate / 100);
 
             $productModels[] = [
@@ -952,17 +979,17 @@ class DirectCheckoutService
                 'quantity' => $quantity,
                 'selected_price' => $selectedPrice,
             ];
-        }
+            }
 
-        // Calculate shipping using order-sheet rules (same as cart)
-        $shippingFee = $this->calculateOrderSheetShippingFee(
+            // Calculate shipping using order-sheet rules (same as cart)
+            $shippingFee = $this->calculateOrderSheetShippingFee(
             $subTotal,
             $defaultShippingFee
-        );
+            );
 
-        // Apply discount if provided (to subtotal only, not shipping)
-        $discountAmount = 0;
-        if ($discountCode) {
+            // Apply discount if provided (to subtotal only, not shipping)
+            $discountAmount = 0;
+            if ($discountCode) {
             $discountService = new DiscountCodeService;
             $discountModel = $discountService->validate($discountCode);
             if (! $discountModel) {
@@ -970,7 +997,7 @@ class DirectCheckoutService
             }
             // Calculate discount on subtotal only
             $discountAmount = $discountService->calculateDiscount($subTotal, $discountModel);
-        }
+            }
 
         // Apply discount to subtotal only
         $discountedSubtotal = max(0, $subTotal - $discountAmount);
@@ -1213,7 +1240,7 @@ class DirectCheckoutService
             $subTotal += $lineTotal;
 
             // Calculate tax for this product line
-            $taxRate = $this->getTaxRate($product);
+            $taxRate = $this->getTaxRate($product, $geoData['currency']);
             $totalTax += $lineTotal * ($taxRate / 100);
         }
 
@@ -1286,7 +1313,7 @@ class DirectCheckoutService
             $subTotal += $lineTotal;
             
             // Calculate tax for this product line
-            $taxRate = $this->getTaxRate($product);
+            $taxRate = $this->getTaxRate($product, $currency);
             $totalTax += $lineTotal * ($taxRate / 100);
         }
 
@@ -1334,13 +1361,15 @@ class DirectCheckoutService
      * @param int $productId
      * @param string $priceId
      * @param string|null $discountCode
+     * @param string|null $currency
      * @return array Totals including discount
      * @throws \Exception
      */
     public function calculateDirectCheckoutTotals(
         int $productId,
         string $priceId,
-        ?string $discountCode = null
+        ?string $discountCode = null,
+        ?string $currency = null
     ): array {
         $product = Product::findOrFail($productId);
 
@@ -1352,10 +1381,16 @@ class DirectCheckoutService
 
         $selectedPrice = $priceData['value'];
 
+        // If currency not provided, get it from geo data
+        if (!$currency) {
+            $geoData = $this->getGeoData();
+            $currency = $geoData['currency'];
+        }
+
         // Calculate base totals
         $subTotal = $selectedPrice['value'];
         $shippingFee = $this->getShippingFee($product);
-        $taxRate = $this->getTaxRate($product);
+        $taxRate = $this->getTaxRate($product, $currency);
 
         // Apply discount if provided
         $discountAmount = 0;

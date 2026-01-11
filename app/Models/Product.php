@@ -185,4 +185,26 @@ class Product extends Model
 
         return (float) config('checkout.tax_rate', 0);
     }
+
+    /**
+     * Get tax rate by brand/checkout type (product-specific, brand-specific, or global)
+     */
+    public function getTaxRateByBrand(?string $brand = null): float
+    {
+        // Product-specific tax rate takes highest priority
+        if ($this->tax_rate !== null) {
+            return (float) $this->tax_rate;
+        }
+
+        // Brand-specific tax rate
+        if ($brand) {
+            $brandRate = config("checkout.tax_rates_by_brand.{$brand}");
+            if ($brandRate !== null) {
+                return (float) $brandRate;
+            }
+        }
+
+        // Fall back to default global tax rate
+        return (float) config('checkout.tax_rate', 0);
+    }
 }

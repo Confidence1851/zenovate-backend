@@ -202,17 +202,20 @@ class UpdateService
         $sub_total = $products->sum("selected_price.value");
         $shipping_fee = ProcessorService::getShippingFee($this->formSession);
 
-        // Calculate tax rate (use first product's tax rate or global config)
+        // Get geo data for currency
+        $geoData = $this->parseGeoData();
+
+        // Calculate tax rate (use first product's tax rate, brand-specific, or global config)
         $taxRate = 0;
         $firstProduct = $products->first();
         if ($firstProduct) {
-            $taxRate = $firstProduct->getTaxRate();
+            $taxRate = $firstProduct->getTaxRateByBrand($geoData['currency'] === 'CAD' ? 'cccportal' : 'pinksky');
         }
         
         // Calculate tax amount
         $taxAmount = $sub_total * ($taxRate / 100);
 
-        $checkoutData = array_merge($this->parseGeoData(), [
+        $checkoutData = array_merge($geoData, [
             "products" => $products,
             "shipping_fee" => floatval(number_format($shipping_fee, 2)),
             "sub_total" => floatval(number_format($sub_total, 2)),

@@ -391,4 +391,40 @@ class FormController extends Controller
             return $this->throwableError($e);
         }
     }
+
+    /**
+     * Get checkout configuration (tax rates, shipping fees, etc.) for the order sheet
+     */
+    public function checkoutConfig(Request $request)
+    {
+        try {
+            $requestedCurrency = $request->query('currency');
+            if ($requestedCurrency && in_array(strtoupper($requestedCurrency), ['USD', 'CAD'])) {
+                $currency = strtoupper($requestedCurrency);
+            } else {
+                $currency = config('order-sheet.currency', 'USD');
+            }
+
+            // Determine brand based on currency
+            $brand = $currency === 'CAD' ? 'cccportal' : 'pinksky';
+
+            // Get brand-specific tax rate or fall back to default
+            $brandTaxRate = config("checkout.tax_rates_by_brand.{$brand}");
+            $taxRate = $brandTaxRate !== null ? (float) $brandTaxRate : (float) config('checkout.tax_rate', 0);
+            $shippingFee = (float) config('checkout.shipping_fee', 60);
+
+            return ApiHelper::validResponse(
+                'Checkout configuration retrieved',
+                [
+                    'currency' => $currency,
+                    'brand' => $brand,
+                    'tax_rate' => $taxRate,
+                    'default_shipping_fee' => $shippingFee,
+                    'free_shipping_threshold' => 1000,
+                ]
+            );
+        } catch (Throwable $e) {
+            return $this->throwableError($e);
+        }
+    }
 }

@@ -37,6 +37,7 @@ Route::as("api.")->group(function () {
         Route::get('/products/by-categories', [FormController::class, 'productsByCategories'])->name('products.by-categories');
         Route::get('/products/order-sheet', [FormController::class, 'orderSheetProducts'])->name('products.order-sheet');
         Route::get('/products/{id}', [FormController::class, 'productInfo'])->name('products.info');
+        Route::get('/checkout/config', [FormController::class, 'checkoutConfig'])->name('checkout.config');
         Route::get('/session/info/{id}', [FormController::class, 'info'])->name('session.info');
         Route::post('/session/recreate/{id}', [FormController::class, 'recreate'])->name('session.recreate')->middleware("auth:sanctum");
         Route::post('/session/start', [FormController::class, 'startSession'])->name('session.start');
