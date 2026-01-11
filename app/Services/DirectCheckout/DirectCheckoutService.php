@@ -1239,8 +1239,8 @@ class DirectCheckoutService
             $lineTotal = $selectedPrice['value'] * $quantity;
             $subTotal += $lineTotal;
 
-            // Calculate tax for this product line
-            $taxRate = $this->getTaxRate($product, $geoData['currency']);
+            // Calculate tax for this product line (cart uses default tax rate, not brand-specific)
+            $taxRate = $this->getTaxRate($product);
             $totalTax += $lineTotal * ($taxRate / 100);
         }
 
