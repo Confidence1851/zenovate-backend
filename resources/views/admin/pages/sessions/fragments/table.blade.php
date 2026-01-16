@@ -10,6 +10,7 @@
             <th>Status</th>
             <th>Payment Status</th>
             <th>Booking Type</th>
+            <th>Origin</th>
             <th>Date</th>
             <th></th>
         </tr>
@@ -31,6 +32,22 @@
                 </td>
                 <td>
                     <x-status-badge :value="$session->getBookingTypeDisplay()" />
+                </td>
+                <td>
+                    @php
+                        $sourcePath = $session->metadata['source_path'] ?? '';
+                        $portalOrigin = null;
+                        if (str_contains($sourcePath, 'pinksky')) {
+                            $portalOrigin = 'Pinksky';
+                        } elseif (str_contains($sourcePath, 'cccportal') || str_contains($sourcePath, 'canada')) {
+                            $portalOrigin = 'CCCPortal';
+                        }
+                    @endphp
+                    @if ($portalOrigin)
+                        <span class="badge bg-dark text-white">{{ $portalOrigin }}</span>
+                    @else
+                        N/A
+                    @endif
                 </td>
                 <td>{{ $session->created_at }}</td>
                 <td>

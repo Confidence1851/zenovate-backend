@@ -26,6 +26,9 @@ class ProcessorService
         // For order sheets, currency is determined by location field
         $currency = $data["currency"] ?? 'USD';
 
+        $sourcePath = $session->metadata["source_path"] ?? "";
+        $isPinksky = str_contains($sourcePath, "pinksky");
+
         $payment = Payment::create([
             "form_session_id" => $session->id,
             "reference" => self::generateReference(),
@@ -50,6 +53,15 @@ class ProcessorService
             "location" => $isMultiProduct ? ($customerInfo["location"] ?? null) : null,
             "shipping_address" => $isMultiProduct ? ($customerInfo["shipping_address"] ?? null) : null,
             "additional_information" => $isMultiProduct ? ($customerInfo["additional_information"] ?? null) : null,
+            "metadata" => $isMultiProduct ? array_merge(
+                [
+                    "source_path" => $sourcePath ?: null,
+                ],
+                $isPinksky ? [
+                    "business_name" => $customerInfo["business_name"] ?? null,
+                    "medical_director_name" => $customerInfo["medical_director_name"] ?? null,
+                ] : []
+            ) : null,
         ]);
 
         foreach ($data["products"] as $product) {

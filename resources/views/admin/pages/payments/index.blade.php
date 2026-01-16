@@ -39,6 +39,7 @@
                                     <th>Shipping Fee</th>
                                     <th>Total</th>
                                     <th>Status</th>
+                                    <th>Origin</th>
                                     <th>Date</th>
                                     <th></th>
                                 </tr>
@@ -54,6 +55,22 @@
                                         <td>{{ $payment->getAmount('total') ?? 'N/A' }}</td>
                                         <td>
                                             <x-status-badge :value="$payment->status" />
+                                        </td>
+                                        <td>
+                                            @php
+                                                $sourcePath = $payment->metadata['source_path'] ?? ($payment->formSession->metadata['source_path'] ?? '');
+                                                $portalOrigin = null;
+                                                if (str_contains($sourcePath, 'pinksky')) {
+                                                    $portalOrigin = 'Pinksky';
+                                                } elseif (str_contains($sourcePath, 'cccportal') || str_contains($sourcePath, 'canada')) {
+                                                    $portalOrigin = 'CCCPortal';
+                                                }
+                                            @endphp
+                                            @if ($portalOrigin)
+                                                <span class="badge bg-dark text-white">{{ $portalOrigin }}</span>
+                                            @else
+                                                N/A
+                                            @endif
                                         </td>
                                         <td>{{ $payment->created_at }}</td>
                                         <td>

@@ -123,6 +123,8 @@ class DirectCheckoutController extends Controller
     public function orderSheetInit(Request $request)
     {
         try {
+            $isPinksky = $request->get('source_path') && str_contains($request->get('source_path'), 'pinksky');
+
             $validated = $request->validate([
                 'products' => 'required|array|min:1',
                 'products.*.product_id' => 'required|integer|exists:products,id',
@@ -132,6 +134,8 @@ class DirectCheckoutController extends Controller
                 'last_name' => 'required|string|max:255',
                 'email' => 'required|email|max:255',
                 'phone' => 'required|string|max:255',
+                'business_name' => ($isPinksky ? 'required' : 'nullable') . '|string|max:255',
+                'medical_director_name' => ($isPinksky ? 'required' : 'nullable') . '|string|max:255',
                 'account_number' => 'nullable|string|max:255',
                 'location' => 'nullable|string|max:255',
                 'shipping_address' => 'nullable|string',
@@ -149,6 +153,8 @@ class DirectCheckoutController extends Controller
                 $validated['last_name'],
                 $validated['email'],
                 $validated['phone'],
+                $validated['business_name'],
+                $validated['medical_director_name'],
                 $validated['account_number'] ?? '',
                 $validated['location'] ?? '',
                 $validated['shipping_address'] ?? null,
@@ -333,6 +339,8 @@ class DirectCheckoutController extends Controller
             'last_name' => $formSession->metadata['raw']['lastName'] ?? $payment->last_name ?? null,
             'email' => $formSession->metadata['raw']['email'] ?? $payment->email ?? null,
             'phone' => $formSession->metadata['raw']['phoneNumber'] ?? $payment->phone ?? null,
+            'business_name' => $formSession->metadata['raw']['businessName'] ?? null,
+            'medical_director_name' => $formSession->metadata['raw']['medicalDirectorName'] ?? null,
             'account_number' => $formSession->metadata['raw']['account_number'] ?? null,
             'location' => $formSession->metadata['raw']['location'] ?? null,
             'shipping_address' => $formSession->metadata['raw']['shipping_address'] ?? null,

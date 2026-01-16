@@ -86,6 +86,21 @@
                                 <b>Booking Type:</b>
                                 <x-status-badge :value="$session->getBookingTypeDisplay()" />
                             </p>
+                            @php
+                                $sourcePath = $session->metadata['source_path'] ?? '';
+                                $portalOrigin = null;
+                                if (str_contains($sourcePath, 'pinksky')) {
+                                    $portalOrigin = 'Pinksky';
+                                } elseif (str_contains($sourcePath, 'cccportal') || str_contains($sourcePath, 'canada')) {
+                                    $portalOrigin = 'CCCPortal';
+                                }
+                            @endphp
+                            @if ($portalOrigin)
+                                <p>
+                                    <b>Portal Origin:</b>
+                                    <span class="badge bg-dark text-white">{{ $portalOrigin }}</span>
+                                </p>
+                            @endif
                             <p>
                                 <b>Signed Document:</b>
                                 @if (!empty(($url = $session->docuseal_url)))
@@ -107,6 +122,19 @@
                             <p>
                                 <b>Phone:</b> {{ $dto->phone() ?? 'N/A' }}
                             </p>
+                            @php
+                                $raw = $session->metadata['raw'] ?? [];
+                            @endphp
+                            @if (!empty($raw['businessName']))
+                                <p>
+                                    <b>Business Name:</b> {{ $raw['businessName'] }}
+                                </p>
+                            @endif
+                            @if (!empty($raw['medicalDirectorName']))
+                                <p>
+                                    <b>Medical Director Name:</b> {{ $raw['medicalDirectorName'] }}
+                                </p>
+                            @endif
                             <p>
                                 <b>Preferred Contact Method:</b> {{ $dto->preferredContact() ?? 'N/A' }}
                             </p>
@@ -140,6 +168,16 @@
                                 @php
                                     $raw = $session->metadata['raw'] ?? [];
                                 @endphp
+                                @if (!empty($raw['businessName']))
+                                    <p>
+                                        <b>Business Name:</b> {{ $raw['businessName'] }}
+                                    </p>
+                                @endif
+                                @if (!empty($raw['medicalDirectorName']))
+                                    <p>
+                                        <b>Medical Director Name:</b> {{ $raw['medicalDirectorName'] }}
+                                    </p>
+                                @endif
                                 @if (!empty($raw['account_number']))
                                     <p>
                                         <b>Account Number:</b> {{ $raw['account_number'] }}

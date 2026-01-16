@@ -69,6 +69,38 @@
                                 <b>Total:</b> {{ $payment->getAmount('total') ?? 'N/A' }}
                             </p>
 
+                            @if (!empty($payment->metadata['business_name']))
+                                <p>
+                                    <b>Business Name:</b> {{ $payment->metadata['business_name'] }}
+                                </p>
+                            @endif
+                            @if (!empty($payment->metadata['medical_director_name']))
+                                <p>
+                                    <b>Medical Director Name:</b> {{ $payment->metadata['medical_director_name'] }}
+                                </p>
+                            @endif
+
+                            @if (!empty($payment->account_number))
+                                <p>
+                                    <b>Account Number:</b> {{ $payment->account_number }}
+                                </p>
+                            @endif
+                            @if (!empty($payment->location))
+                                <p>
+                                    <b>Location:</b> {{ $payment->location }}
+                                </p>
+                            @endif
+                            @if (!empty($payment->shipping_address))
+                                <p>
+                                    <b>Shipping Address:</b> {{ $payment->shipping_address }}
+                                </p>
+                            @endif
+                            @if (!empty($payment->additional_information))
+                                <p>
+                                    <b>Additional Information:</b> {{ $payment->additional_information }}
+                                </p>
+                            @endif
+
                             <hr>
                             <p>
                                 <b>Gateway:</b> {{ $payment->gateway ?? 'N/A' }}
@@ -96,6 +128,21 @@
                             <p>
                                 <b>Status:</b> <x-status-badge :value="$payment->status" />
                             </p>
+                            @php
+                                $sourcePath = $payment->metadata['source_path'] ?? ($payment->formSession->metadata['source_path'] ?? '');
+                                $portalOrigin = null;
+                                if (str_contains($sourcePath, 'pinksky')) {
+                                    $portalOrigin = 'Pinksky';
+                                } elseif (str_contains($sourcePath, 'cccportal') || str_contains($sourcePath, 'canada')) {
+                                    $portalOrigin = 'CCCPortal';
+                                }
+                            @endphp
+                            @if ($portalOrigin)
+                                <p>
+                                    <b>Portal Origin:</b>
+                                    <span class="badge bg-dark text-white">{{ $portalOrigin }}</span>
+                                </p>
+                            @endif
 
                         </div>
                     </div>
