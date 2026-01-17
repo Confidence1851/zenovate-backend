@@ -258,6 +258,12 @@ class StripeService
             $this->payment->update([
                 "status" => StatusConstants::CANCELLED,
             ]);
+            // Update form session status if it exists
+            if ($this->payment->formSession) {
+                $this->payment->formSession->update([
+                    "status" => StatusConstants::CANCELLED
+                ]);
+            }
             return;
         }
 
@@ -266,6 +272,12 @@ class StripeService
             $this->payment->update([
                 "status" => StatusConstants::CANCELLED,
             ]);
+            // Update form session status if it exists
+            if ($this->payment->formSession) {
+                $this->payment->formSession->update([
+                    "status" => StatusConstants::CANCELLED
+                ]);
+            }
             return;
         }
 

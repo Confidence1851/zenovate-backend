@@ -35,9 +35,11 @@
                 </td>
                 <td>
                     @php
-                        $sourcePath = $session->metadata['source_path'] ?? '';
+                        $sourcePath = strtolower($session->metadata['source_path'] ?? '');
                         $portalOrigin = null;
-                        if (str_contains($sourcePath, 'pinksky')) {
+                        if (str_contains($sourcePath, 'products')) {
+                            $portalOrigin = 'Products';
+                        } elseif (str_contains($sourcePath, 'pinksky')) {
                             $portalOrigin = 'Pinksky';
                         } elseif (str_contains($sourcePath, 'cccportal') || str_contains($sourcePath, 'canada')) {
                             $portalOrigin = 'CCCPortal';

@@ -376,6 +376,20 @@ class DirectCheckoutService
     }
 
     /**
+     * Get global tax rate (product-specific or global, skip brand-specific)
+     */
+    private function getGlobalTaxRate(Product $product): float
+    {
+        // Check product-specific tax rate first
+        if ($product->tax_rate !== null) {
+            return (float) $product->tax_rate;
+        }
+
+        // Fallback to global config (skip brand-specific rates)
+        return (float) config('checkout.tax_rate', 0);
+    }
+
+    /**
      * Get tax rate (product-specific, brand-specific, or global)
      */
     private function getTaxRate(Product $product, ?string $currency = null): float
@@ -952,6 +966,7 @@ class DirectCheckoutService
         ?string $shippingAddress = null,
         ?string $additionalInformation = null,
         ?string $discountCode = null,
+        ?string $sourcePath = null,
         ?string $ref = null
     ): array {
         // If ref is provided, recalculate with new params
@@ -1045,6 +1060,7 @@ class DirectCheckoutService
             $shippingAddress,
             $additionalInformation,
             $discountCode,
+            $sourcePath,
             $geoData['currency'] ?? 'USD'
         );
 
@@ -1108,6 +1124,7 @@ class DirectCheckoutService
         ?string $shippingAddress,
         ?string $additionalInformation,
         ?string $discountCode = null,
+        ?string $sourcePath = null,
         ?string $currency = null
     ): FormSession {
         $selectedProducts = array_map(function ($item) {
@@ -1118,6 +1135,9 @@ class DirectCheckoutService
             ];
         }, $productModels);
 
+        // Determine redirect path: use source_path if provided, otherwise use /products as default
+        $redirectPath = $sourcePath ?? '/products';
+
         return FormSession::create([
             'status' => StatusConstants::PENDING,
             'booking_type' => 'direct', // Identify as direct checkout
@@ -1127,6 +1147,7 @@ class DirectCheckoutService
                 'user_agent' => request()->userAgent(),
                 'location' => null,
                 'order_type' => 'cart',
+                'source_path' => $redirectPath,
                 'currency' => $currency ?? 'USD',
                 'country_code' => 'US',
                 'raw' => [
@@ -1394,7 +1415,8 @@ class DirectCheckoutService
         int $productId,
         string $priceId,
         ?string $discountCode = null,
-        ?string $currency = null
+        ?string $currency = null,
+        bool $useGlobalTaxRate = true
     ): array {
         $product = Product::findOrFail($productId);
 
@@ -1415,7 +1437,7 @@ class DirectCheckoutService
         // Calculate base totals
         $subTotal = $selectedPrice['value'];
         $shippingFee = $this->getShippingFee($product);
-        $taxRate = $this->getTaxRate($product, $currency);
+        $taxRate = $useGlobalTaxRate ? $this->getGlobalTaxRate($product) : $this->getTaxRate($product, $currency);
 
         // Apply discount if provided
         $discountAmount = 0;

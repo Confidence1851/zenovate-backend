@@ -60,6 +60,10 @@ class FormSessionResource extends JsonResource
         }
 
 
+        // Get simplified origin from source_path
+        $sourcePath = $this->metadata['source_path'] ?? '/products';
+        $origin = $this->getSimplifiedOrigin($sourcePath);
+
         return [
             'id' => $this->id,
             'reference' => $this->reference,
@@ -67,7 +71,25 @@ class FormSessionResource extends JsonResource
             'total_cost' => $total_cost ?? 0,
             'status' => $this->status,
             'comment' => $this->comment,
+            'origin' => $origin,
+            'source_path' => $sourcePath,
             'created_at' => $this->created_at->format("Y-m-d h:i A"),
         ];
+    }
+
+    /**
+     * Get simplified origin label from source_path
+     */
+    private function getSimplifiedOrigin(string $sourcePath): string
+    {
+        if (stripos($sourcePath, 'products') !== false) {
+            return 'Products';
+        } elseif (stripos($sourcePath, 'pinksky') !== false) {
+            return 'Pinksky';
+        } elseif (stripos($sourcePath, 'cccportal') !== false) {
+            return 'CCCPortal';
+        }
+        
+        return 'N/A';
     }
 }

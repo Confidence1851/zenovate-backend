@@ -710,6 +710,7 @@ class DirectCheckoutController extends Controller
                 'shipping_address' => 'nullable|string',
                 'additional_information' => 'nullable|string',
                 'discount_code' => 'nullable|string',
+                'source_path' => 'nullable|string|max:255',
                 'ref' => 'nullable|string|max:255',
             ]);
 
@@ -725,6 +726,7 @@ class DirectCheckoutController extends Controller
                 $validated['shipping_address'] ?? null,
                 $validated['additional_information'] ?? null,
                 $validated['discount_code'] ?? null,
+                $validated['source_path'] ?? null,
                 $validated['ref'] ?? null
             );
 
