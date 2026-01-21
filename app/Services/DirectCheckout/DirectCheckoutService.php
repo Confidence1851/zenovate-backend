@@ -363,6 +363,23 @@ class DirectCheckoutService
     }
 
     /**
+     * Get currency from source path (cccportal, professional = CAD; pinksky = USD)
+     */
+    private function getCurrencyFromSourcePath(?string $sourcePath = null): ?string
+    {
+        if (!$sourcePath) {
+            return null;
+        }
+
+        if (str_contains($sourcePath, 'cccportal') || str_contains($sourcePath, 'professional')) {
+            return 'CAD';
+        } elseif (str_contains($sourcePath, 'pinksky')) {
+            return 'USD';
+        }
+        return null;
+    }
+
+    /**
      * Get brand from currency (CAD = cccportal, others = pinksky)
      */
     private function getBrandFromCurrency(?string $currency = null): ?string
@@ -620,6 +637,15 @@ class DirectCheckoutService
         // Find or create user by email
         $user = $this->findOrCreateUser($firstName, $lastName, $email);
 
+        // Enforce currency based on source path
+        if ($sourcePath) {
+            $enforcedCurrency = $this->getCurrencyFromSourcePath($sourcePath);
+            if ($enforcedCurrency && $currency && $currency !== $enforcedCurrency) {
+                throw new \Exception("Currency mismatch: source path {$sourcePath} requires {$enforcedCurrency} but {$currency} was provided");
+            }
+            $currency = $enforcedCurrency ?? $currency;
+        }
+
         // Use passed currency if provided, otherwise use location field for currency detection
         if ($currency && in_array(strtoupper($currency), ['USD', 'CAD'])) {
             $geoData = [
@@ -709,7 +735,7 @@ class DirectCheckoutService
                 ];
             }, $productModels);
             
-            $redirectPath = $sourcePath ?? ($geoData['currency'] === 'CAD' ? '/cccportal/order' : '/pinksky/order');
+            $redirectPath = $sourcePath ?? ($geoData['currency'] === 'CAD' ? '/professional/order' : '/pinksky/order');
             
             $formSession->metadata = [
                 'user_agent' => request()->userAgent(),
@@ -755,7 +781,7 @@ class DirectCheckoutService
         }
 
         // Determine redirect path: use source_path if provided, otherwise default based on currency
-        $redirectPath = $sourcePath ?? ($geoData['currency'] === 'CAD' ? '/cccportal/order' : '/pinksky/order');
+        $redirectPath = $sourcePath ?? ($geoData['currency'] === 'CAD' ? '/professional/order' : '/pinksky/order');
 
         return [
             'form_session_id' => $formSession->id,
@@ -829,7 +855,7 @@ class DirectCheckoutService
         }, $productModels);
 
         // Determine redirect path: use source_path if provided, otherwise default based on currency
-        $redirectPath = $sourcePath ?? ($currency === 'CAD' ? '/cccportal/order' : '/pinksky/order');
+        $redirectPath = $sourcePath ?? ($currency === 'CAD' ? '/professional/order' : '/pinksky/order');
 
         // Set country code based on currency
         $countryCode = ($currency === 'CAD') ? 'CA' : 'US';

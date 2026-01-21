@@ -139,23 +139,43 @@ class FormController extends Controller
 
             // Check if currency is passed as a query parameter (from URL-based routing)
             $requestedCurrency = $request->query('currency');
+            // Also check source_path to enforce currency (cccportal, professional = CAD; pinksky = USD)
+            $sourcePath = $request->query('source_path') ?? $request->header('Referer');
+            $enforcedCurrency = null;
+            
+            if ($sourcePath) {
+                if (str_contains($sourcePath, 'cccportal') || str_contains($sourcePath, 'professional')) {
+                    $enforcedCurrency = 'CAD';
+                } elseif (str_contains($sourcePath, 'pinksky')) {
+                    $enforcedCurrency = 'USD';
+                }
+            }
+            
             if ($requestedCurrency && in_array(strtoupper($requestedCurrency), ['USD', 'CAD'])) {
                 $currency = strtoupper($requestedCurrency);
+                // Validate against enforced currency from source path
+                if ($enforcedCurrency && $currency !== $enforcedCurrency) {
+                    throw new \Exception("Currency {$currency} not allowed for source path {$sourcePath}");
+                }
             } else {
-                // Fall back to config-based currency detection
-                $useLocationPricing = config('order-sheet.use_location_pricing', false);
-                $currency = config('order-sheet.currency', 'USD');
+                // Fall back to enforced currency or config-based currency detection
+                if ($enforcedCurrency) {
+                    $currency = $enforcedCurrency;
+                } else {
+                    $useLocationPricing = config('order-sheet.use_location_pricing', false);
+                    $currency = config('order-sheet.currency', 'USD');
 
-                if ($useLocationPricing) {
-                    // Auto-detect currency from IP address: CAD for Canada, USD for others
-                    $info = IpAddressService::info();
-                    $countryCode = $info['countryCode'] ?? null;
-                    $country = $info['country'] ?? null;
+                    if ($useLocationPricing) {
+                        // Auto-detect currency from IP address: CAD for Canada, USD for others
+                        $info = IpAddressService::info();
+                        $countryCode = $info['countryCode'] ?? null;
+                        $country = $info['country'] ?? null;
 
-                    if (strtolower($countryCode ?? '') === 'ca' || strtolower($country ?? '') === 'canada') {
-                        $currency = $info['currency'] ?? 'CAD';
-                    } else {
-                        $currency = $info['currency'] ?? 'USD';
+                        if (strtolower($countryCode ?? '') === 'ca' || strtolower($country ?? '') === 'canada') {
+                            $currency = $info['currency'] ?? 'CAD';
+                        } else {
+                            $currency = $info['currency'] ?? 'USD';
+                        }
                     }
                 }
             }
