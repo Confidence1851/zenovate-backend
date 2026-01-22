@@ -380,12 +380,29 @@ class DirectCheckoutService
     }
 
     /**
-     * Get brand from currency (CAD = cccportal, others = pinksky)
+     * Get brand from source path (professional, cccportal = professional; pinksky = pinksky)
+     */
+    private function getBrandFromSourcePath(?string $sourcePath = null): ?string
+    {
+        if (!$sourcePath) {
+            return null;
+        }
+
+        if (str_contains($sourcePath, 'professional') || str_contains($sourcePath, 'cccportal')) {
+            return 'professional';
+        } elseif (str_contains($sourcePath, 'pinksky')) {
+            return 'pinksky';
+        }
+        return null;
+    }
+
+    /**
+     * Get brand from currency (CAD = professional, others = pinksky)
      */
     private function getBrandFromCurrency(?string $currency = null): ?string
     {
         if ($currency === 'CAD') {
-            return 'cccportal';
+            return 'professional';
         } elseif ($currency === 'USD') {
             return 'pinksky';
         }
@@ -409,15 +426,15 @@ class DirectCheckoutService
     /**
      * Get tax rate (product-specific, brand-specific, or global)
      */
-    private function getTaxRate(Product $product, ?string $currency = null): float
+    private function getTaxRate(Product $product, ?string $currency = null, ?string $sourcePath = null): float
     {
         // Check product-specific tax rate first
         if ($product->tax_rate !== null) {
             return (float) $product->tax_rate;
         }
 
-        // Get brand from currency if available
-        $brand = $this->getBrandFromCurrency($currency);
+        // Get brand from source path first (if provided), then currency
+        $brand = $this->getBrandFromSourcePath($sourcePath) ?? $this->getBrandFromCurrency($currency);
         
         // Check brand-specific tax rate
         if ($brand) {
@@ -680,7 +697,7 @@ class DirectCheckoutService
             $subTotal += $lineTotal;
 
             // Calculate tax for this product line
-            $taxRate = $this->getTaxRate($product, $geoData['currency']);
+            $taxRate = $this->getTaxRate($product, $geoData['currency'], $sourcePath);
             $totalTax += $lineTotal * ($taxRate / 100);
 
             $productModels[] = [

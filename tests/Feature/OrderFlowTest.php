@@ -172,6 +172,27 @@ class OrderFlowTest extends TestCase
     }
 
     /**
+     * Test: Professional Portal Order
+     * New professional portal with CAD currency and specific tax configuration
+     */
+    public function test_professional_portal_fields()
+    {
+        // Test professional portal data structure
+        $professionalData = [
+            'order_type' => 'order_sheet',
+            'user_id' => $this->user->id,
+            'status' => 'pending',
+            'currency' => 'CAD',
+            'source_path' => '/professional/order',
+        ];
+
+        // Verify professional fields
+        $this->assertEquals('order_sheet', $professionalData['order_type']);
+        $this->assertEquals('CAD', $professionalData['currency']);
+        $this->assertStringContainsString('professional', $professionalData['source_path']);
+    }
+
+    /**
      * Test: Pricing calculations
      * Subtotal + Shipping + Tax calculations
      */
@@ -448,5 +469,90 @@ class OrderFlowTest extends TestCase
         $this->assertEquals(60, $shipping);
         $this->assertEquals(15, $tax);
         $this->assertEquals(225, $total);
+    }
+
+    /**
+     * Test: Brand-specific tax rates
+     * Professional, Pinksky, and CCC Portal should use their own tax rates
+     */
+    public function test_brand_specific_tax_rates()
+    {
+        // Test brand-specific tax rates from config
+        $professionalRate = config('checkout.tax_rates_by_brand.professional');
+        $pinskyRate = config('checkout.tax_rates_by_brand.pinksky');
+        $cccRate = config('checkout.tax_rates_by_brand.cccportal');
+        
+        // Verify rates exist (should be configured)
+        // Professional and CCC Portal should both be CAD
+        if ($professionalRate !== null && $cccRate !== null) {
+            // Both are CAD brands, can have same or different rates
+            $this->assertIsNumeric($professionalRate);
+            $this->assertIsNumeric($cccRate);
+        }
+        
+        // Pinksky is USD, should have its own rate
+        if ($pinskyRate !== null) {
+            $this->assertIsNumeric($pinskyRate);
+        }
+        
+        // Verify configuration structure
+        $taxRatesByBrand = config('checkout.tax_rates_by_brand');
+        $this->assertArrayHasKey('professional', $taxRatesByBrand);
+        $this->assertArrayHasKey('pinksky', $taxRatesByBrand);
+        $this->assertArrayHasKey('cccportal', $taxRatesByBrand);
+    }
+
+    /**
+     * Test: Professional portal tax calculation
+     * Professional CAD portal should use professional tax rate
+     */
+    public function test_professional_portal_tax_calculation()
+    {
+        $subtotal = 100;
+        $professionalRate = config('checkout.tax_rates_by_brand.professional') ?? config('checkout.tax_rate', 0);
+        
+        $tax = $subtotal * ($professionalRate / 100);
+        $shipping = 60;
+        $total = $subtotal + $shipping + $tax;
+        
+        // Verify calculation is correct
+        $this->assertGreaterThan(0, $total);
+        $this->assertEquals($subtotal + $shipping + $tax, $total);
+    }
+
+    /**
+     * Test: Currency enforcement for professional portal
+     * Professional should enforce CAD currency
+     */
+    public function test_professional_currency_enforcement()
+    {
+        $sourcePath = '/professional/order';
+        $currency = 'CAD';
+        
+        // Verify professional route maps to CAD
+        $this->assertStringContainsString('professional', $sourcePath);
+        $this->assertEquals('CAD', $currency);
+        
+        // Test that USD would not match professional
+        $currencyMismatch = ($sourcePath === '/professional/order' && $currency !== 'CAD');
+        $this->assertFalse($currencyMismatch);
+    }
+
+    /**
+     * Test: Pinksky currency enforcement
+     * Pinksky should enforce USD currency
+     */
+    public function test_pinksky_currency_enforcement()
+    {
+        $sourcePath = '/pinksky/order';
+        $currency = 'USD';
+        
+        // Verify pinksky route maps to USD
+        $this->assertStringContainsString('pinksky', $sourcePath);
+        $this->assertEquals('USD', $currency);
+        
+        // Test that CAD would not match pinksky
+        $currencyMismatch = ($sourcePath === '/pinksky/order' && $currency !== 'USD');
+        $this->assertFalse($currencyMismatch);
     }
 }

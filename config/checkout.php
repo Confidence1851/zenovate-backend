@@ -28,13 +28,14 @@ return [
     | Brand-Specific Tax Rates
     |--------------------------------------------------------------------------
     |
-    | Tax rates by brand/checkout type (pinksky, cccportal).
+    | Tax rates by brand/checkout type (pinksky, cccportal, professional).
     | If a brand is specified here, it will override the default tax_rate.
     |
     */
     'tax_rates_by_brand' => [
         'pinksky' => env('CHECKOUT_TAX_RATE_PINKSKY', null),
         'cccportal' => env('CHECKOUT_TAX_RATE_CCCPORTAL', null),
+        'professional' => env('CHECKOUT_TAX_RATE_PROFESSIONAL', null),
     ],
 
     /*
