@@ -33,28 +33,28 @@ class DirectCheckoutController extends Controller
             ]);
 
             $service = new DirectCheckoutService;
-            
+
             // Calculate totals (pure calculation, no form session creation)
             $totals = $service->calculateDirectCheckoutTotals(
                 $validated['product_id'],
                 $validated['price_id'],
                 null // no discount code on initial load
             );
-            
+
             // Get product for display info
             $product = \App\Models\Product::findOrFail($validated['product_id']);
             $priceData = json_decode(\App\Helpers\Helper::decrypt($validated['price_id']), true);
-            
+
             // Find or create user (for future form session creation)
             $user = $service->findOrCreateUserForCheckout(
                 $validated['first_name'],
                 $validated['last_name'],
                 $validated['email']
             );
-            
+
             // Get geo data
             $geoData = $service->getGeoDataForCheckout();
-            
+
             // Return checkout info without form session
             $checkoutData = [
                 'product_id' => $validated['product_id'],
@@ -134,8 +134,8 @@ class DirectCheckoutController extends Controller
                 'last_name' => 'required|string|max:255',
                 'email' => 'required|email|max:255',
                 'phone' => 'required|string|max:255',
-                'business_name' => ($isPinksky ? 'required' : 'nullable') . '|string|max:255',
-                'medical_director_name' => ($isPinksky ? 'required' : 'nullable') . '|string|max:255',
+                'business_name' => ($isPinksky ? 'required' : 'nullable').'|string|max:255',
+                'medical_director_name' => ($isPinksky ? 'required' : 'nullable').'|string|max:255',
                 'account_number' => 'nullable|string|max:255',
                 'location' => 'nullable|string|max:255',
                 'shipping_address' => 'nullable|string',
@@ -219,6 +219,7 @@ class DirectCheckoutController extends Controller
                 'discount_code' => 'nullable|string',
                 'currency' => 'nullable|string|in:USD,CAD',
                 'location' => 'nullable|string|max:255',
+                'source_path' => 'nullable|string|max:255',
             ]);
 
             $service = new DirectCheckoutService;
@@ -226,7 +227,8 @@ class DirectCheckoutController extends Controller
                 $validated['products'],
                 $validated['discount_code'] ?? null,
                 $validated['currency'] ?? null,
-                $validated['location'] ?? null
+                $validated['location'] ?? null,
+                $validated['source_path'] ?? null
             );
 
             return ApiHelper::validResponse(
@@ -349,7 +351,7 @@ class DirectCheckoutController extends Controller
 
         // Get source path from formSession metadata for redirect purposes
         $sourcePath = $formSession->metadata['source_path'] ?? '/products';
-        
+
         $data = [
             'order_type' => $orderType,
             'reference' => $payment->reference,
@@ -392,20 +394,20 @@ class DirectCheckoutController extends Controller
             ]);
 
             $service = new DirectCheckoutService;
-            
+
             // Create form session NOW (when user clicks "Proceed to Checkout")
             $product = \App\Models\Product::findOrFail($validated['product_id']);
             $priceData = json_decode(\App\Helpers\Helper::decrypt($validated['price_id']), true);
             if (! $priceData || $priceData['product_id'] != $validated['product_id']) {
                 throw new \Exception('Invalid price ID');
             }
-            
+
             $user = $service->findOrCreateUserForCheckout(
                 $validated['first_name'],
                 $validated['last_name'],
                 $validated['email']
             );
-            
+
             // Use the existing initializeCheckout method which creates the form session
             $checkoutData = $service->initializeCheckout(
                 $validated['product_id'],
@@ -416,7 +418,7 @@ class DirectCheckoutController extends Controller
                 $validated['use_type'] ?? null,
                 $validated['discount_code'] ?? null
             );
-            
+
             $formSessionId = $checkoutData['form_session_id'];
             $recaptchaToken = $validated['recaptcha_token'] ?? null;
 
@@ -891,7 +893,7 @@ class DirectCheckoutController extends Controller
             ]);
 
             $service = new DirectCheckoutService;
-            
+
             // Handle single product (direct checkout)
             if ($validated['product_id'] && $validated['price_id']) {
                 $totals = $service->calculateDirectCheckoutTotals(
@@ -899,7 +901,7 @@ class DirectCheckoutController extends Controller
                     $validated['price_id'],
                     $validated['discount_code'] ?? null
                 );
-            } 
+            }
             // Handle multiple products (cart or order sheet)
             elseif ($validated['products']) {
                 $totals = $service->calculateOrderSheetTotals(
@@ -908,8 +910,7 @@ class DirectCheckoutController extends Controller
                     null,
                     $validated['location'] ?? null
                 );
-            }
-            else {
+            } else {
                 throw new \Exception('Either product_id/price_id or products array is required');
             }
 
@@ -937,7 +938,7 @@ class DirectCheckoutController extends Controller
             Log::error('Checkout totals calculation failed', [
                 'error' => $message,
                 'trace' => $e->getTraceAsString(),
-                'request' => $request->all()
+                'request' => $request->all(),
             ]);
 
             return ApiHelper::problemResponse(
@@ -950,7 +951,7 @@ class DirectCheckoutController extends Controller
             Log::error('Checkout totals calculation failed', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
-                'request' => $request->all()
+                'request' => $request->all(),
             ]);
 
             return ApiHelper::problemResponse(
@@ -973,6 +974,7 @@ class DirectCheckoutController extends Controller
             unset($checkoutData['_debug']);
             unset($checkoutData['_system']);
         }
+
         return $checkoutData;
     }
 }

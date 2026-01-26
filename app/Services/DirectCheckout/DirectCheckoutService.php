@@ -64,9 +64,9 @@ class DirectCheckoutService
         $appliedDiscountCode = null;
         if ($discountCode) {
             try {
-                $discountService = new DiscountCodeService();
+                $discountService = new DiscountCodeService;
                 $validatedDiscount = $discountService->validate($discountCode);
-                
+
                 if ($validatedDiscount) {
                     // Calculate discount amount based on the discount type
                     $discountAmount = $discountService->calculateDiscount($subTotal, $validatedDiscount);
@@ -83,7 +83,7 @@ class DirectCheckoutService
 
         // Apply discount to subtotal only
         $discountedSubtotal = max(0, $subTotal - $discountAmount);
-        
+
         // If discount is 100% (discounted subtotal is 0), set shipping fee to 0
         if ($discountedSubtotal == 0 && $discountAmount > 0) {
             $shippingFee = 0;
@@ -213,7 +213,7 @@ class DirectCheckoutService
      */
     private function generateReference(): string
     {
-        $code = 'DC-' . Helper::getRandomToken(6, true); // DC = Direct Checkout
+        $code = 'DC-'.Helper::getRandomToken(6, true); // DC = Direct Checkout
         $check = FormSession::where('reference', $code)->exists();
         if ($check) {
             return $this->generateReference();
@@ -305,7 +305,7 @@ class DirectCheckoutService
         $discountAmount = 0;
         if ($discountCode) {
             try {
-                $discountService = new DiscountCodeService();
+                $discountService = new DiscountCodeService;
                 $validatedDiscount = $discountService->validate($discountCode);
                 if ($validatedDiscount) {
                     $discountAmount = $discountService->calculateDiscount($subTotal, $validatedDiscount);
@@ -320,12 +320,12 @@ class DirectCheckoutService
 
         // Calculate final totals with discount
         $discountedSubtotal = max(0, $subTotal - $discountAmount);
-        
+
         // If discount is 100% (discounted subtotal is 0 or nearly 0), set shipping fee to 0
         if ($discountedSubtotal <= 0.01 && $discountAmount > 0) {
             $shippingFee = 0;
         }
-        
+
         $finalTaxAmount = $discountedSubtotal * ($taxRate / 100);
         $finalTotal = $discountedSubtotal + $shippingFee + $finalTaxAmount;
 
@@ -363,8 +363,6 @@ class DirectCheckoutService
         return (float) config('checkout.shipping_fee', 60);
     }
 
-
-
     /**
      * Get global tax rate (product-specific or global, skip brand-specific)
      */
@@ -382,26 +380,30 @@ class DirectCheckoutService
     /**
      * Get tax rate (product-specific, brand-specific, or global)
      */
-    private function getTaxRate(Product $product, ?string $currency = null): float
+    private function getTaxRate(Product $product, ?string $currency = null, ?string $sourcePath = null): float
     {
         // Check product-specific tax rate first
         if ($product->tax_rate !== null) {
             return (float) $product->tax_rate;
         }
 
-        // Use BrandResolutionService to resolve brand from currency only
-        // Don't trust client-provided source paths for tax calculation
-        $brand = BrandResolutionService::getBrandFromCurrency($currency);
-        
-        // Check brand-specific tax rate
-        if ($brand) {
-            $brandRate = config("checkout.tax_rates_by_brand.{$brand}");
-            if ($brandRate !== null) {
-                return (float) $brandRate;
+        // Only use brand-specific rates if source_path is provided (order sheet pages)
+        // Cart and direct checkout modal should always use global rate
+        if ($sourcePath) {
+            // Use BrandResolutionService to resolve brand from source_path and currency
+            // source_path takes priority to distinguish between professional and cccportal (both CAD)
+            $brand = BrandResolutionService::resolveBrand($sourcePath, $currency);
+
+            // Check brand-specific tax rate
+            if ($brand) {
+                $brandRate = config("checkout.tax_rates_by_brand.{$brand}");
+                if ($brandRate !== null) {
+                    return (float) $brandRate;
+                }
             }
         }
 
-        // Fallback to global config
+        // Fallback to global config (used by cart and direct checkout)
         return (float) config('checkout.tax_rate', 0);
     }
 
@@ -479,7 +481,8 @@ class DirectCheckoutService
         array $products,
         ?string $discountCode = null,
         ?string $currency = null,
-        ?string $location = null
+        ?string $location = null,
+        ?string $sourcePath = null
     ): array {
         // Load all products and calculate totals
         $productModels = [];
@@ -514,7 +517,7 @@ class DirectCheckoutService
             $subTotal += $lineTotal;
 
             // Calculate tax for this product line
-            $taxRate = $this->getTaxRate($product, $geoData['currency']);
+            $taxRate = $this->getTaxRate($product, $geoData['currency'], $sourcePath);
             $totalTax += $lineTotal * ($taxRate / 100);
 
             $productModels[] = [
@@ -585,9 +588,9 @@ class DirectCheckoutService
         string $lastName,
         string $email,
         string $phone,
-        ?string $businessName = null,
-        ?string $medicalDirectorName = null,
-        string $accountNumber = '',
+        ?string $businessName,
+        ?string $medicalDirectorName,
+        string $accountNumber,
         string $location,
         ?string $shippingAddress = null,
         ?string $additionalInformation = null,
@@ -705,14 +708,15 @@ class DirectCheckoutService
                     'quantity' => $item['quantity'],
                 ];
             }, $productModels);
-            
+
             $redirectPath = $sourcePath ?? ($geoData['currency'] === 'CAD' ? '/professional/order' : '/pinksky/order');
-            
+
             $formSession->metadata = [
                 'user_agent' => request()->userAgent(),
                 'location' => null,
                 'order_type' => 'order_sheet',
                 'source_path' => $redirectPath,
+                'brand' => BrandResolutionService::resolveBrand($redirectPath, $geoData['currency']),
                 'currency' => $geoData['currency'],
                 'country_code' => $geoData['country_code'],
                 'raw' => [
@@ -807,9 +811,9 @@ class DirectCheckoutService
         string $lastName,
         string $email,
         string $phone,
-        ?string $businessName = null,
-        ?string $medicalDirectorName = null,
-        string $accountNumber = '',
+        ?string $businessName,
+        ?string $medicalDirectorName,
+        string $accountNumber,
         string $location,
         ?string $shippingAddress,
         ?string $additionalInformation,
@@ -876,7 +880,6 @@ class DirectCheckoutService
 
         $metadata = $formSession->metadata;
 
-        
         if (($metadata['order_type'] ?? null) !== 'order_sheet') {
             throw new \Exception('Invalid checkout type');
         }
@@ -893,13 +896,13 @@ class DirectCheckoutService
         $products = collect();
         foreach ($selectedProducts as $productData) {
             $product = Product::findOrFail($productData['product_id']);
-            
+
             // Decrypt price_id to get price information
             $priceData = json_decode(Helper::decrypt($productData['price_id']), true);
             if (! $priceData) {
                 throw new \Exception('Invalid price data for product');
             }
-            
+
             $product->selected_price = $priceData['value'];
             $product->quantity = (int) ($productData['quantity'] ?? 1);
             $products->push($product);
@@ -908,10 +911,13 @@ class DirectCheckoutService
         // Recalculate all totals to validate prices
         $discountCode = $rawData['discount_code'] ?? null;
         $currency = $rawData['currency'] ?? $metadata['currency'] ?? 'USD';
+        $sourcePath = $metadata['source_path'] ?? null;
         $totals = $this->recalculateOrderSheetTotals(
             $products,
             $discountCode,
-            $currency
+            $currency,
+            false,
+            $sourcePath
         );
 
         // Prepare data for ProcessorService
@@ -969,14 +975,14 @@ class DirectCheckoutService
         // If ref is provided, recalculate with new params
         // This ensures product/discount changes are applied
         if ($ref) {
-            $checkoutId = 'ref_' . $ref;
+            $checkoutId = 'ref_'.$ref;
         }
-        
-        // Find or create user by email
-                    $user = $this->findOrCreateUser($firstName, $lastName, $email);
 
-                    // Use location field for currency detection: CAD for Canada, USD for others
-                    $geoData = $this->getGeoDataFromLocation($location);
+        // Find or create user by email
+        $user = $this->findOrCreateUser($firstName, $lastName, $email);
+
+        // Use location field for currency detection: CAD for Canada, USD for others
+        $geoData = $this->getGeoDataFromLocation($location);
 
         // Load all products and calculate totals
         $productModels = [];
@@ -1010,17 +1016,17 @@ class DirectCheckoutService
                 'quantity' => $quantity,
                 'selected_price' => $selectedPrice,
             ];
-            }
+        }
 
-            // Calculate shipping using order-sheet rules (same as cart)
-            $shippingFee = $this->calculateOrderSheetShippingFee(
+        // Calculate shipping using order-sheet rules (same as cart)
+        $shippingFee = $this->calculateOrderSheetShippingFee(
             $subTotal,
             $defaultShippingFee
-            );
+        );
 
-            // Apply discount if provided (to subtotal only, not shipping)
-            $discountAmount = 0;
-            if ($discountCode) {
+        // Apply discount if provided (to subtotal only, not shipping)
+        $discountAmount = 0;
+        if ($discountCode) {
             $discountService = new DiscountCodeService;
             $discountModel = $discountService->validate($discountCode);
             if (! $discountModel) {
@@ -1028,7 +1034,7 @@ class DirectCheckoutService
             }
             // Calculate discount on subtotal only
             $discountAmount = $discountService->calculateDiscount($subTotal, $discountModel);
-            }
+        }
 
         // Apply discount to subtotal only
         $discountedSubtotal = max(0, $subTotal - $discountAmount);
@@ -1062,7 +1068,7 @@ class DirectCheckoutService
         );
 
         // Create checkout data
-        $checkoutId = 'cart_' . uniqid();
+        $checkoutId = 'cart_'.uniqid();
         $checkoutData = [
             'checkout_id' => $checkoutId,
             'form_session_id' => $formSession->id,
@@ -1145,6 +1151,7 @@ class DirectCheckoutService
                 'location' => null,
                 'order_type' => 'cart',
                 'source_path' => $redirectPath,
+                'brand' => BrandResolutionService::resolveBrand($redirectPath, $currency ?? 'USD'),
                 'currency' => $currency ?? 'USD',
                 'country_code' => 'US',
                 'raw' => [
@@ -1193,13 +1200,13 @@ class DirectCheckoutService
         $products = collect();
         foreach ($selectedProducts as $productData) {
             $product = Product::findOrFail($productData['product_id']);
-            
+
             // Decrypt price_id to get price information
             $priceData = json_decode(Helper::decrypt($productData['price_id']), true);
             if (! $priceData) {
                 throw new \Exception('Invalid price data for product');
             }
-            
+
             $product->selected_price = $priceData['value'];
             $product->quantity = (int) ($productData['quantity'] ?? 1);
             $products->push($product);
@@ -1327,13 +1334,15 @@ class DirectCheckoutService
 
     /**
      * Recalculate order sheet totals from products to validate against tampering
-     * @param bool $useDefaultTaxRateOnly If true, use default tax rate (for cart). If false, use brand-specific rates (for order sheet).
+     *
+     * @param  bool  $useDefaultTaxRateOnly  If true, use default tax rate (for cart). If false, use brand-specific rates (for order sheet).
      */
     private function recalculateOrderSheetTotals(
         $products,
         ?string $discountCode = null,
         string $currency = 'USD',
-        bool $useDefaultTaxRateOnly = false
+        bool $useDefaultTaxRateOnly = false,
+        ?string $sourcePath = null
     ): array {
 
         $subTotal = 0;
@@ -1344,19 +1353,19 @@ class DirectCheckoutService
         foreach ($products as $product) {
             $quantity = $product->quantity ?? 1;
             $price = $product->selected_price;
-            
+
             if (is_array($price)) {
                 $lineTotal = ($price['value'] ?? 0) * $quantity;
             } else {
                 $lineTotal = 0;
             }
-            
+
             $subTotal += $lineTotal;
-            
+
             // Calculate tax for this product line
             // For cart: use default tax rate only
             // For order sheet: use brand-specific rates
-            $taxRate = $useDefaultTaxRateOnly ? $this->getTaxRate($product) : $this->getTaxRate($product, $currency);
+            $taxRate = $useDefaultTaxRateOnly ? $this->getTaxRate($product) : $this->getTaxRate($product, $currency, $sourcePath);
             $totalTax += $lineTotal * ($taxRate / 100);
         }
 
@@ -1400,12 +1409,9 @@ class DirectCheckoutService
     /**
      * Calculate direct checkout totals with optional discount
      * Pure calculation endpoint - no form session creation
-     * 
-     * @param int $productId
-     * @param string $priceId
-     * @param string|null $discountCode
-     * @param string|null $currency
+     *
      * @return array Totals including discount
+     *
      * @throws \Exception
      */
     public function calculateDirectCheckoutTotals(
@@ -1413,7 +1419,7 @@ class DirectCheckoutService
         string $priceId,
         ?string $discountCode = null,
         ?string $currency = null,
-        bool $useGlobalTaxRate = true
+        bool $useGlobalTaxRate = false
     ): array {
         $product = Product::findOrFail($productId);
 
@@ -1426,7 +1432,7 @@ class DirectCheckoutService
         $selectedPrice = $priceData['value'];
 
         // If currency not provided, get it from geo data
-        if (!$currency) {
+        if (! $currency) {
             $geoData = $this->getGeoData();
             $currency = $geoData['currency'];
         }
@@ -1441,9 +1447,9 @@ class DirectCheckoutService
         $appliedDiscountCode = null;
         if ($discountCode) {
             try {
-                $discountService = new DiscountCodeService();
+                $discountService = new DiscountCodeService;
                 $validatedDiscount = $discountService->validate($discountCode);
-                
+
                 if ($validatedDiscount) {
                     $discountAmount = $discountService->calculateDiscount($subTotal, $validatedDiscount);
                     $appliedDiscountCode = $validatedDiscount->code;
@@ -1457,12 +1463,12 @@ class DirectCheckoutService
 
         // Calculate tax on discounted subtotal only
         $discountedSubtotal = max(0, $subTotal - $discountAmount);
-        
+
         // If discount is 100% (discounted subtotal is 0 or nearly 0), set shipping to 0
         if ($discountedSubtotal <= 0.01 && $discountAmount > 0) {
             $shippingFee = 0;
         }
-        
+
         $taxAmount = $discountedSubtotal * ($taxRate / 100);
 
         // Calculate total
@@ -1478,5 +1484,4 @@ class DirectCheckoutService
             'total' => round($total, 2),
         ];
     }
-
 }

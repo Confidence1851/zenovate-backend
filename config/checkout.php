@@ -7,7 +7,7 @@ return [
     |--------------------------------------------------------------------------
     |
     | Default shipping fee in the base currency (USD/CAD).
-    | This can be overridden per product in the products table.
+    | This can be overridden per product in the products table or by brand.
     |
     */
     'shipping_fee' => env('CHECKOUT_SHIPPING_FEE', 60),
@@ -17,19 +17,55 @@ return [
     | Default Tax Rate
     |--------------------------------------------------------------------------
     |
-    | Default tax rate as a percentage (e.g., 5 for 5%).
-    | This can be overridden per product in the products table.
+    | Default tax rate as a percentage (e.g., 13 for 13%).
+    | This is used as a fallback when no brand-specific or product-specific
+    | tax rate is configured.
     |
     */
-    'tax_rate' => env('CHECKOUT_TAX_RATE', 0),
+    'tax_rate' => env('CHECKOUT_TAX_RATE', 13),
 
     /*
     |--------------------------------------------------------------------------
-    | Brand-Specific Tax Rates
+    | Brand-Specific Configurations
     |--------------------------------------------------------------------------
     |
-    | Tax rates by brand/checkout type (pinksky, cccportal, professional).
-    | If a brand is specified here, it will override the default tax_rate.
+    | Complete configuration for each brand including tax rates, currency,
+    | and optional shipping fees. This is the preferred configuration method.
+    |
+    | Brands:
+    | - pinksky: USD-based, 5% tax
+    | - cccportal: CAD-based, 3% tax
+    | - professional: CAD-based, 13% tax
+    |
+    */
+    'brands' => [
+        'pinksky' => [
+            'tax_rate' => env('CHECKOUT_TAX_RATE_PINKSKY', 5),
+            'currency' => 'USD',
+            'shipping_fee' => null, // null = use global default
+            'display_name' => 'Pinksky',
+        ],
+        'cccportal' => [
+            'tax_rate' => env('CHECKOUT_TAX_RATE_CCCPORTAL', 3),
+            'currency' => 'CAD',
+            'shipping_fee' => null,
+            'display_name' => 'CCC Portal',
+        ],
+        'professional' => [
+            'tax_rate' => env('CHECKOUT_TAX_RATE_PROFESSIONAL', 13),
+            'currency' => 'CAD',
+            'shipping_fee' => null,
+            'display_name' => 'Professional',
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Legacy Brand-Specific Tax Rates (Deprecated)
+    |--------------------------------------------------------------------------
+    |
+    | DEPRECATED: Use 'brands' configuration above instead.
+    | Kept for backward compatibility only.
     |
     */
     'tax_rates_by_brand' => [

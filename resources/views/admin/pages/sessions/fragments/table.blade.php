@@ -43,6 +43,8 @@
                             $portalOrigin = 'Pinksky';
                         } elseif (str_contains($sourcePath, 'cccportal') || str_contains($sourcePath, 'canada')) {
                             $portalOrigin = 'CCCPortal';
+                        } elseif (str_contains($sourcePath, 'professional')) {
+                            $portalOrigin = 'Professional';
                         }
                     @endphp
                     @if ($portalOrigin)
