@@ -12,6 +12,7 @@ use App\Http\Resources\ProductResource;
 use App\Models\FormSession;
 use App\Models\FormSessionActivity;
 use App\Models\Product;
+use App\Services\BrandResolutionService;
 use App\Services\Form\Payment\ProcessorService;
 use App\Services\Form\Session\StartService;
 use App\Services\Form\Session\UpdateService;
@@ -137,48 +138,21 @@ class FormController extends Controller
             }
             ob_start();
 
-            // Check if currency is passed as a query parameter (from URL-based routing)
-            $requestedCurrency = $request->query('currency');
-            // Also check source_path to enforce currency (cccportal, professional = CAD; pinksky = USD)
-            $sourcePath = $request->query('source_path') ?? $request->header('Referer');
-            $enforcedCurrency = null;
+            // Only accept brand from frontend (never trust headers)
+            $requestedBrand = $request->query('brand');
             
-            if ($sourcePath) {
-                if (str_contains($sourcePath, 'cccportal') || str_contains($sourcePath, 'professional')) {
-                    $enforcedCurrency = 'CAD';
-                } elseif (str_contains($sourcePath, 'pinksky')) {
-                    $enforcedCurrency = 'USD';
-                }
+            // Validate brand is one of the allowed values
+            $allowedBrands = ['professional', 'cccportal', 'pinksky'];
+            if (!$requestedBrand || !in_array($requestedBrand, $allowedBrands)) {
+                throw new \Exception('Invalid or missing brand parameter');
             }
             
-            if ($requestedCurrency && in_array(strtoupper($requestedCurrency), ['USD', 'CAD'])) {
-                $currency = strtoupper($requestedCurrency);
-                // Validate against enforced currency from source path
-                if ($enforcedCurrency && $currency !== $enforcedCurrency) {
-                    throw new \Exception("Currency {$currency} not allowed for source path {$sourcePath}");
-                }
-            } else {
-                // Fall back to enforced currency or config-based currency detection
-                if ($enforcedCurrency) {
-                    $currency = $enforcedCurrency;
-                } else {
-                    $useLocationPricing = config('order-sheet.use_location_pricing', false);
-                    $currency = config('order-sheet.currency', 'USD');
-
-                    if ($useLocationPricing) {
-                        // Auto-detect currency from IP address: CAD for Canada, USD for others
-                        $info = IpAddressService::info();
-                        $countryCode = $info['countryCode'] ?? null;
-                        $country = $info['country'] ?? null;
-
-                        if (strtolower($countryCode ?? '') === 'ca' || strtolower($country ?? '') === 'canada') {
-                            $currency = $info['currency'] ?? 'CAD';
-                        } else {
-                            $currency = $info['currency'] ?? 'USD';
-                        }
-                    }
-                }
-            }
+            // Resolve currency from brand
+            $currency = match($requestedBrand) {
+                'professional', 'cccportal' => 'CAD',
+                'pinksky' => 'USD',
+                default => 'USD'
+            };
 
             // Store currency in request for ProductResource to use
             $request->merge(['order_sheet_currency' => $currency]);
@@ -418,15 +392,23 @@ class FormController extends Controller
     public function checkoutConfig(Request $request)
     {
         try {
-            $requestedCurrency = $request->query('currency');
-            if ($requestedCurrency && in_array(strtoupper($requestedCurrency), ['USD', 'CAD'])) {
-                $currency = strtoupper($requestedCurrency);
-            } else {
-                $currency = config('order-sheet.currency', 'USD');
+            // Only accept brand from frontend (never trust headers)
+            $requestedBrand = $request->query('brand');
+            
+            // Validate brand is one of the allowed values
+            $allowedBrands = ['professional', 'cccportal', 'pinksky'];
+            if (!$requestedBrand || !in_array($requestedBrand, $allowedBrands)) {
+                throw new \Exception('Invalid or missing brand parameter');
             }
-
-            // Determine brand based on currency
-            $brand = $currency === 'CAD' ? 'cccportal' : 'pinksky';
+            
+            $brand = $requestedBrand;
+            
+            // Resolve currency from brand
+            $currency = match($brand) {
+                'professional', 'cccportal' => 'CAD',
+                'pinksky' => 'USD',
+                default => 'USD'
+            };
 
             // Get brand-specific tax rate or fall back to default
             $brandTaxRate = config("checkout.tax_rates_by_brand.{$brand}");

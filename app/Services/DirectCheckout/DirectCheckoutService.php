@@ -8,6 +8,7 @@ use App\Helpers\StatusConstants;
 use App\Models\FormSession;
 use App\Models\Product;
 use App\Models\User;
+use App\Services\BrandResolutionService;
 use App\Services\Form\Payment\ProcessorService;
 use App\Services\General\DiscountCodeService;
 use App\Services\General\IpAddressService;
@@ -362,52 +363,7 @@ class DirectCheckoutService
         return (float) config('checkout.shipping_fee', 60);
     }
 
-    /**
-     * Get currency from source path (cccportal, professional = CAD; pinksky = USD)
-     */
-    private function getCurrencyFromSourcePath(?string $sourcePath = null): ?string
-    {
-        if (!$sourcePath) {
-            return null;
-        }
 
-        if (str_contains($sourcePath, 'cccportal') || str_contains($sourcePath, 'professional')) {
-            return 'CAD';
-        } elseif (str_contains($sourcePath, 'pinksky')) {
-            return 'USD';
-        }
-        return null;
-    }
-
-    /**
-     * Get brand from source path (professional, cccportal = professional; pinksky = pinksky)
-     */
-    private function getBrandFromSourcePath(?string $sourcePath = null): ?string
-    {
-        if (!$sourcePath) {
-            return null;
-        }
-
-        if (str_contains($sourcePath, 'professional') || str_contains($sourcePath, 'cccportal')) {
-            return 'professional';
-        } elseif (str_contains($sourcePath, 'pinksky')) {
-            return 'pinksky';
-        }
-        return null;
-    }
-
-    /**
-     * Get brand from currency (CAD = professional, others = pinksky)
-     */
-    private function getBrandFromCurrency(?string $currency = null): ?string
-    {
-        if ($currency === 'CAD') {
-            return 'professional';
-        } elseif ($currency === 'USD') {
-            return 'pinksky';
-        }
-        return null;
-    }
 
     /**
      * Get global tax rate (product-specific or global, skip brand-specific)
@@ -426,15 +382,16 @@ class DirectCheckoutService
     /**
      * Get tax rate (product-specific, brand-specific, or global)
      */
-    private function getTaxRate(Product $product, ?string $currency = null, ?string $sourcePath = null): float
+    private function getTaxRate(Product $product, ?string $currency = null): float
     {
         // Check product-specific tax rate first
         if ($product->tax_rate !== null) {
             return (float) $product->tax_rate;
         }
 
-        // Get brand from source path first (if provided), then currency
-        $brand = $this->getBrandFromSourcePath($sourcePath) ?? $this->getBrandFromCurrency($currency);
+        // Use BrandResolutionService to resolve brand from currency only
+        // Don't trust client-provided source paths for tax calculation
+        $brand = BrandResolutionService::getBrandFromCurrency($currency);
         
         // Check brand-specific tax rate
         if ($brand) {
@@ -654,13 +611,10 @@ class DirectCheckoutService
         // Find or create user by email
         $user = $this->findOrCreateUser($firstName, $lastName, $email);
 
-        // Enforce currency based on source path
-        if ($sourcePath) {
-            $enforcedCurrency = $this->getCurrencyFromSourcePath($sourcePath);
-            if ($enforcedCurrency && $currency && $currency !== $enforcedCurrency) {
-                throw new \Exception("Currency mismatch: source path {$sourcePath} requires {$enforcedCurrency} but {$currency} was provided");
-            }
-            $currency = $enforcedCurrency ?? $currency;
+        // Validate currency against source path (if provided by client)
+        // If there's a mismatch, reject it as potential fraud
+        if ($sourcePath && $currency) {
+            BrandResolutionService::validateCurrency($sourcePath, $currency);
         }
 
         // Use passed currency if provided, otherwise use location field for currency detection
@@ -696,8 +650,8 @@ class DirectCheckoutService
             $lineTotal = $selectedPrice['value'] * $quantity;
             $subTotal += $lineTotal;
 
-            // Calculate tax for this product line
-            $taxRate = $this->getTaxRate($product, $geoData['currency'], $sourcePath);
+            // Calculate tax for this product line (based on currency only, not client-provided sourcePath)
+            $taxRate = $this->getTaxRate($product, $geoData['currency']);
             $totalTax += $lineTotal * ($taxRate / 100);
 
             $productModels[] = [
