@@ -34,6 +34,7 @@ return [
     |
     | Brands:
     | - pinksky: USD-based, 5% tax
+    | - zenovateus: USD-based, 13% tax
     | - cccportal: CAD-based, 3% tax
     | - professional: CAD-based, 13% tax
     |
@@ -42,8 +43,14 @@ return [
         'pinksky' => [
             'tax_rate' => env('CHECKOUT_TAX_RATE_PINKSKY', 5),
             'currency' => 'USD',
-            'shipping_fee' => null, // null = use global default
+            'shipping_fee' => null,
             'display_name' => 'Pinksky',
+        ],
+        'zenovateus' => [
+            'tax_rate' => env('CHECKOUT_TAX_RATE_ZENOVATEUS', 13),
+            'currency' => 'USD',
+            'shipping_fee' => null,
+            'display_name' => 'Zenovate US',
         ],
         'cccportal' => [
             'tax_rate' => env('CHECKOUT_TAX_RATE_CCCPORTAL', 3),
@@ -70,6 +77,7 @@ return [
     */
     'tax_rates_by_brand' => [
         'pinksky' => env('CHECKOUT_TAX_RATE_PINKSKY', null),
+        'zenovateus' => env('CHECKOUT_TAX_RATE_ZENOVATEUS', null),
         'cccportal' => env('CHECKOUT_TAX_RATE_CCCPORTAL', null),
         'professional' => env('CHECKOUT_TAX_RATE_PROFESSIONAL', null),
     ],

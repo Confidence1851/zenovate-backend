@@ -18,6 +18,8 @@ class BrandResolutionService
             return 'professional';
         } elseif (str_contains($sourcePath, 'cccportal')) {
             return 'cccportal';
+        } elseif (str_contains($sourcePath, 'zenovate-us')) {
+            return 'zenovateus';
         } elseif (str_contains($sourcePath, 'pinksky')) {
             return 'pinksky';
         }
@@ -35,7 +37,7 @@ class BrandResolutionService
 
         if (str_contains($sourcePath, 'cccportal') || str_contains($sourcePath, 'professional')) {
             return 'CAD';
-        } elseif (str_contains($sourcePath, 'pinksky')) {
+        } elseif (str_contains($sourcePath, 'zenovate-us') || str_contains($sourcePath, 'pinksky')) {
             return 'USD';
         }
         return null;

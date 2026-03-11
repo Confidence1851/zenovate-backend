@@ -167,7 +167,7 @@ class BrandTaxConfigService
         }
 
         // Fallback based on brand name
-        if ($brand === 'pinksky') {
+        if (in_array($brand, ['pinksky', 'zenovateus'])) {
             return 'USD';
         } elseif (in_array($brand, ['cccportal', 'professional'])) {
             return 'CAD';
@@ -232,6 +232,7 @@ class BrandTaxConfigService
     {
         $names = [
             'pinksky' => 'Pinksky',
+            'zenovateus' => 'Zenovate US',
             'cccportal' => 'CCC Portal',
             'professional' => 'Professional',
         ];

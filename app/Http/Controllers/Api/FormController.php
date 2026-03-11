@@ -142,7 +142,7 @@ class FormController extends Controller
             $requestedBrand = $request->query('brand');
             
             // Validate brand is one of the allowed values
-            $allowedBrands = ['professional', 'cccportal', 'pinksky'];
+            $allowedBrands = ['professional', 'cccportal', 'pinksky', 'zenovateus'];
             if (!$requestedBrand || !in_array($requestedBrand, $allowedBrands)) {
                 throw new \Exception('Invalid or missing brand parameter');
             }
@@ -150,7 +150,7 @@ class FormController extends Controller
             // Resolve currency from brand
             $currency = match($requestedBrand) {
                 'professional', 'cccportal' => 'CAD',
-                'pinksky' => 'USD',
+                'pinksky', 'zenovateus' => 'USD',
                 default => 'USD'
             };
 
@@ -396,7 +396,7 @@ class FormController extends Controller
             $requestedBrand = $request->query('brand');
             
             // Validate brand is one of the allowed values
-            $allowedBrands = ['professional', 'cccportal', 'pinksky'];
+            $allowedBrands = ['professional', 'cccportal', 'pinksky', 'zenovateus'];
             if (!$requestedBrand || !in_array($requestedBrand, $allowedBrands)) {
                 throw new \Exception('Invalid or missing brand parameter');
             }
@@ -406,7 +406,7 @@ class FormController extends Controller
             // Resolve currency from brand
             $currency = match($brand) {
                 'professional', 'cccportal' => 'CAD',
-                'pinksky' => 'USD',
+                'pinksky', 'zenovateus' => 'USD',
                 default => 'USD'
             };
 
